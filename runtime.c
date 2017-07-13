@@ -40,71 +40,52 @@
 #endif
 #include "stat.h"
 #include "readdir.h"
-#include "plugin.h"
 #include "glue.h"
 #include "console.h"
 
 unsigned char RAM[65536];
 
+//unsigned char A, X, Y, S;
+//unsigned short PC;
+//unsigned char V, B, D, I, C, N, Z;
+
+extern void reset6502();
+void step6502();
+extern void exec6502(uint32_t tickcount);
+
+void
+set_c(char f)
+{
+	status = (status & ~1) | !!f;
+}
+
+void
+set_z(char f)
+{
+	status = (status & ~2) | (!!f << 1);
+}
+
+uint8_t
+read6502(uint16_t address)
+{
+	return RAM[address];
+}
+
+void
+write6502(uint16_t address, uint8_t value)
+{
+	RAM[address] = value;
+}
+
 int
 stack4(unsigned short a, unsigned short b, unsigned short c, unsigned short d) {
 //	printf("stack4: %x,%x,%x,%x\n", a, b, c, d);
-	if (STACK16(S+1) + 1 != a) return 0;
-	if (STACK16(S+3) + 1 != b) return 0;
-	if (STACK16(S+5) + 1 != c) return 0;
-	if (STACK16(S+7) + 1 != d) return 0;
+	if (STACK16(sp+1) + 1 != a) return 0;
+	if (STACK16(sp+3) + 1 != b) return 0;
+	if (STACK16(sp+5) + 1 != c) return 0;
+	if (STACK16(sp+7) + 1 != d) return 0;
 	return 1;
 }
-
-/*
- * CHRGET/CHRGOT
- * CBMBASIC implements CHRGET/CHRGOT as self-modifying
- * code in the zero page. This cannot be done with
- * static recompilation, so here is a reimplementation
- * of these functions in C.
-0073   E6 7A      INC $7A
-0075   D0 02      BNE $0079
-0077   E6 7B      INC $7B
-0079   AD XX XX   LDA $XXXX
-007C   C9 3A      CMP #$3A   ; colon
-007E   B0 0A      BCS $008A
-0080   C9 20      CMP #$20   ; space
-0082   F0 EF      BEQ $0073
-0084   38         SEC
-0085   E9 30      SBC #$30   ; 0
-0087   38         SEC
-0088   E9 D0      SBC #$D0
-008A   60         RTS
-*/
-static void
-CHRGET_common(int inc) {
-	unsigned short temp16;
-	if (!inc) goto CHRGOT_start;
-CHRGET_start:
-	RAM[0x7A]++; SETSZ(RAM[0x7A]);
-	if (!Z) goto CHRGOT_start;
-	RAM[0x7B]++; SETSZ(RAM[0x7B]);
-CHRGOT_start:
-	A = RAM[RAM[0x7A] | RAM[0x7B]<<8]; SETSZ(A);
-	temp16 = ((unsigned short)A) - ((unsigned short)0x3A); SETNC(temp16); SETSZ(temp16&0xFF);
-	if (C) return;
-	temp16 = ((unsigned short)A) - ((unsigned short)0x20); SETNC(temp16); SETSZ(temp16&0xFF);
-	if (Z) goto CHRGET_start;
-	C = 1;
-	temp16 = (unsigned short)A-(unsigned short)0x30-(unsigned short)(1-C); SETV(((A ^ temp16) & 0x80) && ((A ^ 0x30) & 0x80)); A = (unsigned char)temp16; SETSZ(A); SETNC(temp16);
-	C = 1;
-	temp16 = (unsigned short)A-(unsigned short)0xD0-(unsigned short)(1-C); SETV(((A ^ temp16) & 0x80) && ((A ^ 0xD0) & 0x80)); A = (unsigned char)temp16; SETSZ(A); SETNC(temp16);
-}
-
-void
-CHRGET() {
-	CHRGET_common(1);
-}
-void
-CHRGOT() {
-	CHRGET_common(0);
-}
-
 
 /************************************************************/
 /* KERNAL interface implementation                          */
@@ -143,42 +124,47 @@ int kernal_files_next[] = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
 
 /* shell script hack */
 int readycount = 0;
-int interactive;
-FILE *input_file;
+
+int kernal_dispatch();
 
 int
-init_os(int argc, char **argv) {
-//	printf("init_os %d\n", argc);
-	if (!argc) /* continuation */
-		return PC;
-
+main(int argc, char **argv) {
 	if (argc>1) {
-		interactive = 0;
-		input_file = fopen(argv[1], "r");
-		if (!input_file) {
+		FILE *binary = fopen(argv[1], "r");
+		if (!binary) {
 			printf("Error opening: %s\n", argv[1]);
 			exit(1);
 		}
-		if (fgetc(input_file)=='#') {
-			char c;
-			do {
-				c = fgetc(input_file);
-			} while((c!=13)&&(c!=10));
-		} else {
-			fseek(input_file, 0, SEEK_SET);
-		}
+		uint16_t load_address = fgetc(binary);
+		load_address |= fgetc(binary) << 8;
+		fread(&RAM[load_address], 65536 - load_address, 1, binary);
+		fclose(binary);
+
+		RAM[0xfffc] = 0xd1;
+		RAM[0xfffd] = 0xfc;
+		RAM[0xfffe] = 0x1b;
+		RAM[0xffff] = 0xe6;
 	} else {
-		interactive = 1;
-		input_file = NULL;
+		printf("Usage: %s <filename>\n", argv[0]);
+		exit(1);
 	}
 	srand((unsigned int)time(NULL));
 
-	return 0xE394; /* main entry point of BASIC */
+	reset6502();
+	pc = 2063; /* entry point of assembler64 */
+
+	for (;;) {
+		step6502();
+//		printf("pc = %04x; %02x %02x %02x\n", pc, RAM[pc], RAM[pc+1], RAM[pc+2]);
+		if (!RAM[pc]) {
+			kernal_dispatch();
+		}
+	}
+
+	return 0;
 }
 
 unsigned short orig_error, orig_main, orig_crnch, orig_qplop, orig_gone, orig_eval;
-
-int plugin = 0;
 
 void
 replace_vector(unsigned short address, unsigned short new, unsigned short *old) {
@@ -187,42 +173,10 @@ replace_vector(unsigned short address, unsigned short new, unsigned short *old) 
 	RAM[address+1] = (new)>>8;
 }
 
-void
-plugin_on() {
-	if (plugin)
-		return;
-
-	replace_vector(VEC_ERROR, MAGIC_ERROR, &orig_error);
-	replace_vector(VEC_MAIN, MAGIC_MAIN, &orig_main);
-	replace_vector(VEC_CRNCH, MAGIC_CRNCH, &orig_crnch);
-	replace_vector(VEC_QPLOP, MAGIC_QPLOP, &orig_qplop);
-	replace_vector(VEC_GONE, MAGIC_GONE, &orig_gone);
-	replace_vector(VEC_EVAL, MAGIC_EVAL, &orig_eval);
-	
-	plugin = 1;
-}
-
-static void
-plugin_off() {
-	unsigned short dummy;
-
-	if (!plugin)
-		return;
-
-	replace_vector(VEC_ERROR, orig_error, &dummy);
-	replace_vector(VEC_MAIN, orig_main, &dummy);
-	replace_vector(VEC_CRNCH, orig_crnch, &dummy);
-	replace_vector(VEC_QPLOP, orig_qplop, &dummy);
-	replace_vector(VEC_GONE, orig_gone, &dummy);
-	replace_vector(VEC_EVAL, orig_eval, &dummy);
-
-	plugin = 0;
-}
-
 static void
 SETMSG() {
-		kernal_msgflag = A;
-		A = kernal_status;
+		kernal_msgflag = a;
+		a = kernal_status;
 }
 
 static void
@@ -233,14 +187,8 @@ MEMTOP() {
 		exit(1);
 	}
 #endif
-	X = RAM_TOP&0xFF;
-	Y = RAM_TOP>>8;
-
-	/*
-	 * if we want to turn on the plugin
-	 * automatically at start, we can do it here.
-	 */
-	//plugin_on();
+	x = RAM_TOP&0xFF;
+	y = RAM_TOP>>8;
 }
 
 /* MEMBOT */
@@ -252,29 +200,29 @@ MEMBOT() {
 		exit(1);
 	}
 #endif
-	X = RAM_BOT&0xFF;
-	Y = RAM_BOT>>8;
+	x = RAM_BOT&0xFF;
+	y = RAM_BOT>>8;
 }
 
 /* READST */
 static void
 READST() {
-		A = kernal_status;
+		a = kernal_status;
 }
 
 /* SETLFS */
 static void
 SETLFS() {
-		kernal_lfn = A;
-		kernal_dev = X;
-		kernal_sec = Y;
+		kernal_lfn = a;
+		kernal_dev = x;
+		kernal_sec = y;
 }
 
 /* SETNAM */
 static void
 SETNAM() {
-		kernal_filename = X | Y<<8;
-		kernal_filename_len = A;
+		kernal_filename = x | y<<8;
+		kernal_filename_len = a;
 }
 
 /* OPEN */
@@ -282,23 +230,23 @@ static void
 OPEN() {
     kernal_status = 0;
     if (kernal_files[kernal_lfn]) {
-        C = 1;
-        A = KERN_ERR_FILE_OPEN;
+        set_c(1);
+        a = KERN_ERR_FILE_OPEN;
     } else if (kernal_filename_len == 0) {
-        C = 1;
-        A = KERN_ERR_MISSING_FILE_NAME;
+        set_c(1);
+        a = KERN_ERR_MISSING_FILE_NAME;
     } else {
         unsigned char savedbyte = RAM[kernal_filename+kernal_filename_len];
         const char* mode = kernal_sec == 0 ? "r" : "w";
         RAM[kernal_filename+kernal_filename_len] = 0;
-        kernal_files[kernal_lfn] = fopen(RAM+kernal_filename, mode);
+        kernal_files[kernal_lfn] = fopen((char *)RAM+kernal_filename, mode);
         RAM[kernal_filename+kernal_filename_len] = savedbyte;
         if (kernal_files[kernal_lfn]) {
             kernal_files_next[kernal_lfn] = EOF;
-            C = 0;
+            set_c(0);
         } else {
-            C = 1;
-            A = KERN_ERR_FILE_NOT_FOUND;
+            set_c(1);
+            a = KERN_ERR_FILE_NOT_FOUND;
         }
     }
 }
@@ -307,12 +255,12 @@ OPEN() {
 static void
 CLOSE() {
     if (!kernal_files[kernal_lfn]) {
-        C = 1;
-        A = KERN_ERR_FILE_NOT_OPEN;
+        set_c(1);
+        a = KERN_ERR_FILE_NOT_OPEN;
     } else {
         fclose(kernal_files[kernal_lfn]);
         kernal_files[kernal_lfn] = 0;
-        C = 0;
+        set_c(0);
     }
 }
 
@@ -320,13 +268,13 @@ CLOSE() {
 static void
 CHKIN() {
     kernal_status = 0;
-    if (!kernal_files[X]) {
-        C = 1;
-        A = KERN_ERR_FILE_NOT_OPEN;
+    if (!kernal_files[x]) {
+        set_c(1);
+        a = KERN_ERR_FILE_NOT_OPEN;
     } else {
         // TODO Check read/write mode
-        kernal_input = X;
-        C = 0;
+        kernal_input = x;
+        set_c(0);
     }
 }
 
@@ -334,13 +282,13 @@ CHKIN() {
 static void
 CHKOUT() {
     kernal_status = 0;
-    if (!kernal_files[X]) {
-        C = 1;
-        A = KERN_ERR_FILE_NOT_OPEN;
+    if (!kernal_files[x]) {
+        set_c(1);
+        a = KERN_ERR_FILE_NOT_OPEN;
     } else {
         // TODO Check read/write mode
-        kernal_output = X;
-        C = 0;
+        kernal_output = x;
+        set_c(0);
     }
 }
 
@@ -359,106 +307,52 @@ int fakerun_index = 0;
 /* CHRIN */
 static void
 CHRIN() {
-	if ((!interactive) && (readycount==2)) {
-		exit(0);
-	}
 	if (kernal_input != 0) {
 		if (feof(kernal_files[kernal_input])) {
 			kernal_status |= KERN_ST_EOF;
 			kernal_status |= KERN_ST_TIME_OUT_READ;
-			A = 13;
+			a = 13;
 		} else {
 			if (kernal_files_next[kernal_input] == EOF)
 				kernal_files_next[kernal_input] = fgetc(kernal_files[kernal_input]);
-			A = kernal_files_next[kernal_input];
+			a = kernal_files_next[kernal_input];
 			kernal_files_next[kernal_input] = fgetc(kernal_files[kernal_input]);
 			if (kernal_files_next[kernal_input] == EOF)
 				kernal_status |= KERN_ST_EOF;
 		}
-	} else if (!input_file) {
-		A = getchar(); /* stdin */
-		if (A=='\n') A = '\r';
 	} else {
-		if (fakerun) {
-			A = run[fakerun_index++];
-			if (fakerun_index==sizeof(run))
-				input_file = 0; /* switch to stdin */
-		} else {
-			A = fgetc(input_file);
-			if ((A==255)&&(readycount==1)) {
-				fakerun = 1;
-				fakerun_index = 0;
-				A = run[fakerun_index++];
-			}
-			if (A=='\n') A = '\r';
-		}
+		a = getchar(); /* stdin */
+		if (a == '\n') a = '\r';
 	}
-	C = 0;
+	set_c(0);
 }
 
 /* CHROUT */
 static void
 CHROUT() {
 #if 0
-int a = *(unsigned short*)(&RAM[0x0100+S+1]) + 1;
-int b = *(unsigned short*)(&RAM[0x0100+S+3]) + 1;
-int c = *(unsigned short*)(&RAM[0x0100+S+5]) + 1;
-int d = *(unsigned short*)(&RAM[0x0100+S+7]) + 1;
+int a = *(unsigned short*)(&RAM[0x0100+sp+1]) + 1;
+int b = *(unsigned short*)(&RAM[0x0100+sp+3]) + 1;
+int c = *(unsigned short*)(&RAM[0x0100+sp+5]) + 1;
+int d = *(unsigned short*)(&RAM[0x0100+sp+7]) + 1;
 printf("CHROUT: %d @ %x,%x,%x,%x\n", A, a, b, c, d);
 #endif
-	if (!interactive) {
-		if (stack4(0xe10f,0xab4a,0xab30,0xe430)) {
-			/* COMMODORE 64 BASIC V2 */
-			C = 0;
-			return;
-		}
-		if (stack4(0xe10f,0xab4a,0xab30,0xe43d)) {
-			/* 38911 */
-			C = 0;
-			return;
-		}
-		if (stack4(0xe10f,0xab4a,0xab30,0xe444)) {
-			/* BASIC BYTES FREE */
-			C = 0;
-			return;
-		}
-	}
-	if (stack4(0xe10f,0xab4a,0xab30,0xa47b)) {
-		/* READY */
-		if (A=='R') readycount++;
-		if (!interactive) {
-			C = 0;
-			return;
-		}
-	}
-	if (stack4(0xe10f,0xab4a,0xaadc,0xa486)) {
-		/*
-		 * CR after each entered numbered program line:
-		 * The CBM screen editor returns CR when the user
-		 * hits return, but does not print the character,
-		 * therefore CBMBASIC does. On UNIX, the terminal
-		 * prints all input characters, so we have to avoid
-		 * printing it again
-		 */
-		C = 0;
-		return;
-	}
-	
+
 #if 0
 	printf("CHROUT: %c (%d)\n", A, A);
 #else
     if (kernal_output) {
-        if (fputc(A, kernal_files[kernal_output]) == EOF) {
-            C = 1;
-            A = KERN_ERR_NOT_OUTPUT_FILE;
+        if (fputc(a, kernal_files[kernal_output]) == EOF) {
+            set_c(1);
+            a = KERN_ERR_NOT_OUTPUT_FILE;
         } else
-            C = 0;
+            set_c(0);
     } else {
         if (kernal_quote) {
-            if (A == '"' || A == '\n' || A == '\r') kernal_quote = 0;
-            putchar(A);
+            if (a == '"' || a == '\n' || a == '\r') kernal_quote = 0;
+            putchar(a);
         } else {
-            switch (A) {
+            switch (a) {
                 case 5:
                     set_color(COLOR_WHITE);
                     break;
@@ -537,12 +431,12 @@ printf("CHROUT: %d @ %x,%x,%x,%x\n", A, a, b, c, d);
                     kernal_quote = 1;
                     // fallthrough
                 default:
-                    putchar(A);
+                    putchar(a);
             }
         }
 #endif
 		fflush(stdout);
-		C = 0;
+		set_c(0);
 	}
 }
 
@@ -555,7 +449,7 @@ LOAD() {
 		unsigned short end;
 		unsigned char savedbyte;
 
-		if (A) {
+		if (a) {
 			printf("UNIMPL: VERIFY\n");
 			exit(1);
 		}
@@ -667,28 +561,28 @@ for (i=0; i<255; i++) {
 			goto file_not_found;
 		start = ((unsigned char)fgetc(f)) | ((unsigned char)fgetc(f))<<8;
 		if (!kernal_sec)
-			start = X | Y<<8;
+			start = x | y<<8;
 		end = start + fread(&RAM[start], 1, 65536-start, f); /* TODO may overwrite ROM */
 		printf("LOADING FROM $%04X to $%04X\n", start, end);
 		fclose(f);
 
 load_noerr:
-		X = end & 0xFF;
-		Y = end >> 8;
-		C = 0;
-		A = KERN_ERR_NONE;
+		x = end & 0xFF;
+		y = end >> 8;
+		set_c(0);
+		a = KERN_ERR_NONE;
 		return;
 file_not_found:
-		C = 1;
-		A = KERN_ERR_FILE_NOT_FOUND;
+		set_c(1);
+		a = KERN_ERR_FILE_NOT_FOUND;
 		return;
 device_not_present:
-		C = 1;
-		A = KERN_ERR_DEVICE_NOT_PRESENT;
+		set_c(1);
+		a = KERN_ERR_DEVICE_NOT_PRESENT;
 		return;
 missing_file_name:
-		C = 1;
-		A = KERN_ERR_MISSING_FILE_NAME;
+		set_c(1);
+		a = KERN_ERR_MISSING_FILE_NAME;
 		return;
 }
 
@@ -700,38 +594,38 @@ SAVE() {
 		unsigned short start;
 		unsigned short end;
 
-		start = RAM[A] | RAM[A+1]<<8;
-		end = X | Y << 8;
+		start = RAM[a] | RAM[a+1]<<8;
+		end = x | y << 8;
 		if (end<start) {
-			C = 1;
-			A = KERN_ERR_NONE;
+			set_c(1);
+			a = KERN_ERR_NONE;
 			return;
 		}
 		if (!kernal_filename_len) {
-			C = 1;
-			A = KERN_ERR_MISSING_FILE_NAME;
+			set_c(1);
+			a = KERN_ERR_MISSING_FILE_NAME;
 			return;
 		}
 		savedbyte = RAM[kernal_filename+kernal_filename_len]; /* TODO possible overflow */
 		RAM[kernal_filename+kernal_filename_len] = 0;
 		f = fopen((char*)&RAM[kernal_filename], "wb"); /* overwrite - these are not the COMMODORE DOS semantics! */
 		if (!f) {
-			C = 1;
-			A = KERN_ERR_FILE_NOT_FOUND;
+			set_c(1);
+			a = KERN_ERR_FILE_NOT_FOUND;
 			return;
 		}
 		fputc(start & 0xFF, f);
 		fputc(start >> 8, f);
 		fwrite(&RAM[start], end-start, 1, f);
 		fclose(f);
-		C = 0;
-		A = KERN_ERR_NONE;
+		set_c(0);
+		a = KERN_ERR_NONE;
 }
 
 /* SETTIM */
 static void
 SETTIM() {
-    unsigned long   jiffies = Y*65536 + X*256 + A;
+    unsigned long   jiffies = y*65536 + x*256 + a;
     unsigned long   seconds = jiffies/60;
 #ifdef _WIN32
 	SYSTEMTIME st;
@@ -779,16 +673,16 @@ RDTIM() {
     
     jiffies = ((bd.tm_hour*60 + bd.tm_min)*60 + bd.tm_sec)*60 + tv.tv_usec / (1000000/60);
 #endif
-    Y   = (unsigned char)(jiffies/65536);
-    X   = (unsigned char)((jiffies%65536)/256);
-    A   = (unsigned char)(jiffies%256);
+    y   = (unsigned char)(jiffies/65536);
+    x   = (unsigned char)((jiffies%65536)/256);
+    a   = (unsigned char)(jiffies%256);
     
 }
 
 /* STOP */
 static void
 STOP() {
-		SETZ(0); /* TODO we don't support the STOP key */
+		set_z(0); /* TODO we don't support the STOP key */
 }
 
 /* GETIN */
@@ -798,27 +692,27 @@ GETIN() {
         if (feof(kernal_files[kernal_input])) {
             kernal_status |= KERN_ST_EOF;
             kernal_status |= KERN_ST_TIME_OUT_READ;
-            A = 199;
+            a = 199;
         } else {
             if (kernal_files_next[kernal_input] == EOF)
                 kernal_files_next[kernal_input] = fgetc(kernal_files[kernal_input]);
-            A = kernal_files_next[kernal_input];
+            a = kernal_files_next[kernal_input];
             kernal_files_next[kernal_input] = fgetc(kernal_files[kernal_input]);
             if (kernal_files_next[kernal_input] == EOF)
                 kernal_status |= KERN_ST_EOF;
         }
-        C = 0;
+        set_c(0);
     } else {
 #ifdef _WIN32
         if (_kbhit())
-            A = _getch();
+            a = _getch();
         else
-            A = 0;
+            a = 0;
 #else
-        A = getchar();
+        a = getchar();
 #endif
-        if (A=='\n') A = '\r';
-        C = 0;
+        if (a == '\n') a = '\r';
+        set_c(0);
     }
 }
 
@@ -837,13 +731,13 @@ CLALL() {
 /* PLOT */
 static void
 PLOT() {
-    if (C) {
+    if (status & 1) {
         int CX, CY;
         get_cursor(&CX, &CY);
-        Y = CX;
-        X = CY;
+        y = CX;
+        x = CY;
     } else {
-        printf("UNIMPL: set cursor %d %d\n", Y, X);
+        printf("UNIMPL: set cursor %d %d\n", y, x);
         exit(1);
     }
 }
@@ -866,18 +760,16 @@ IOBASE() {
 		pseudo_timer = rand(); /* more entropy! */
 		RAM[CIA+8] = pseudo_timer&0xff;
 		RAM[CIA+9] = pseudo_timer>>8;
-		X = CIA & 0xFF;
-		Y = CIA >> 8;
+		x = CIA & 0xFF;
+		y = CIA >> 8;
 }
 
 int
 kernal_dispatch() {
-//{ printf("kernal_dispatch $%04X; ", PC); int i; printf("stack (%02X): ", S); for (i=S+1; i<0x100; i++) { printf("%02X ", RAM[0x0100+i]); } printf("\n"); }
+	//	printf("kernal_dispatch $%04X; ", pc); int i; printf("stack (%02X): ", sp); for (i=sp+1; i<0x100; i++) { printf("%02X ", RAM[0x0100+i]); } printf("\n"); }
 
 	unsigned int new_pc;
-	switch(PC) {
-		case 0x0073:	CHRGET();	break;
-		case 0x0079:	CHRGOT();	break;
+	switch(pc) {
 		case 0xFF90:	SETMSG();	break;
 		case 0xFF99:	MEMTOP();	break;
 		case 0xFF9C:	MEMBOT();	break;
@@ -901,20 +793,10 @@ kernal_dispatch() {
 		case 0xFFF0:	PLOT();		break;
 		case 0xFFF3:	IOBASE();	break;
 
-		case 0:		plugin_off(); S+=2; break;
-		case 1:		plugin_on(); S+=2; break;
-
-		case MAGIC_ERROR:	new_pc = plugin_error(); PUSH_WORD(new_pc? new_pc-1:orig_error-1); break;
-		case MAGIC_MAIN:	new_pc = plugin_main(); PUSH_WORD(new_pc? new_pc-1:orig_main-1); break;
-		case MAGIC_CRNCH:	new_pc = plugin_crnch(); PUSH_WORD(new_pc? new_pc-1:orig_crnch-1); break;
-		case MAGIC_QPLOP:	new_pc = plugin_qplop(); PUSH_WORD(new_pc? new_pc-1:orig_qplop-1); break;
-		case MAGIC_GONE:	new_pc = plugin_gone(); PUSH_WORD(new_pc? new_pc-1:orig_gone-1); break;
-		case MAGIC_EVAL:	new_pc = plugin_eval(); PUSH_WORD(new_pc? new_pc-1:orig_eval-1); break;
-		
-		case MAGIC_CONTINUATION: /*printf("--CONTINUATION--\n");*/ return 0;
-
-		default: printf("unknown PC=$%04X S=$%02X\n", PC, S); exit(1);
+		default: printf("unknown PC=$%04X S=$%02X\n", pc, sp); exit(1);
 	}
+	pc = (RAM[0x100+sp+1] | (RAM[0x100+sp+2] << 8)) + 1;
+	sp += 2;
 	return 1;
 }
-
+	
