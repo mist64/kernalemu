@@ -43,6 +43,9 @@
 #include "glue.h"
 #include "console.h"
 
+#define MIN(a,b) (((a)<(b))?(a):(b))
+#define MAX(a,b) (((a)>(b))?(a):(b))
+
 unsigned char RAM[65536];
 
 //unsigned char A, X, Y, S;
@@ -68,12 +71,18 @@ set_z(char f)
 uint8_t
 read6502(uint16_t address)
 {
+	if (address >= 0xa000) {
+//		printf("R %04x\n", address);
+	}
 	return RAM[address];
 }
 
 void
 write6502(uint16_t address, uint8_t value)
 {
+	if (address >= 0xa000) {
+//		printf("W %04x\n", address);
+	}
 	RAM[address] = value;
 }
 
@@ -232,34 +241,58 @@ OPEN() {
     if (kernal_files[kernal_lfn]) {
         set_c(1);
         a = KERN_ERR_FILE_OPEN;
+		printf("ERR: KERN_ERR_FILE_OPEN lfn: %d\n", kernal_lfn);
     } else if (kernal_filename_len == 0) {
         set_c(1);
         a = KERN_ERR_MISSING_FILE_NAME;
-    } else {
-        unsigned char savedbyte = RAM[kernal_filename+kernal_filename_len];
-        const char* mode = kernal_sec == 0 ? "r" : "w";
-        RAM[kernal_filename+kernal_filename_len] = 0;
-        kernal_files[kernal_lfn] = fopen((char *)RAM+kernal_filename, mode);
-        RAM[kernal_filename+kernal_filename_len] = savedbyte;
-        if (kernal_files[kernal_lfn]) {
-            kernal_files_next[kernal_lfn] = EOF;
-            set_c(0);
-        } else {
-            set_c(1);
-            a = KERN_ERR_FILE_NOT_FOUND;
-        }
+//		printf("ERR: KERN_ERR_MISSING_FILE_NAME\n");
+	} else {
+		char filename[41];
+		uint8_t len = MIN(kernal_filename_len, sizeof(filename) - 1);
+		memcpy(filename, (char *)&RAM[kernal_filename], kernal_filename_len);
+		filename[len] = 0;
+		printf("OPEN %d,%d,%d,\"%s\"\n", kernal_lfn, kernal_dev, kernal_sec, filename);
+		if (kernal_sec == 15) { // command channel
+			kernal_files[kernal_lfn] = (void *)-1;
+			set_c(0);
+		} else {
+			char *mode = "r";
+			char *comma = strchr(filename, ',');
+			if (comma) {
+				*comma = 0;
+				char type = comma[1]; // 'S'/'P'/'U'/'L' - ignored
+				char *comma2 = strchr(comma + 1, ',');
+				char mode_c = 0;
+				if (comma2) {
+					mode_c = comma2[1]; // 'R', 'W'
+				}
+				if (mode_c == 'W') {
+					mode = "w";
+				}
+//				printf("(%c, %c, %s)\n", type, mode_c, mode);
+			}
+			kernal_files[kernal_lfn] = fopen(filename, mode);
+			if (kernal_files[kernal_lfn]) {
+				kernal_files_next[kernal_lfn] = EOF;
+				set_c(0);
+			} else {
+				set_c(1);
+				a = KERN_ERR_FILE_NOT_FOUND;
+				printf("ERR: KERN_ERR_FILE_NOT_FOUND\n");
+			}
+		}
     }
 }
 
 /* CLOSE */
 static void
 CLOSE() {
-    if (!kernal_files[kernal_lfn]) {
+    if (!kernal_files[a]) {
         set_c(1);
         a = KERN_ERR_FILE_NOT_OPEN;
     } else {
-        fclose(kernal_files[kernal_lfn]);
-        kernal_files[kernal_lfn] = 0;
+        fclose(kernal_files[a]);
+        kernal_files[a] = 0;
         set_c(0);
     }
 }
@@ -304,11 +337,23 @@ static const char run[] = { 'R', 'U', 'N', 13 };
 int fakerun = 0;
 int fakerun_index = 0;
 
+static const char disk_status[] = "00,OK,00,00\r";
+const char *disk_status_p = disk_status;
+
 /* CHRIN */
 static void
 CHRIN() {
 	if (kernal_input != 0) {
-		if (feof(kernal_files[kernal_input])) {
+		if (kernal_files[kernal_input] == (void *)-1) {
+			// command channel
+			a = *disk_status_p;
+//			printf("%s:%d %c\n", __FILE__, __LINE__, a);
+			disk_status_p++;
+			if (!*disk_status_p) {
+				disk_status_p = disk_status;
+			}
+			set_c(0);
+		} else if (feof(kernal_files[kernal_input])) {
 			kernal_status |= KERN_ST_EOF;
 			kernal_status |= KERN_ST_TIME_OUT_READ;
 			a = 13;
@@ -327,20 +372,109 @@ CHRIN() {
 	set_c(0);
 }
 
+static void
+SCROUT() {
+	if (kernal_quote) {
+		if (a == '"' || a == '\n' || a == '\r') kernal_quote = 0;
+		putchar(a);
+	} else {
+		switch (a) {
+			case 5:
+			set_color(COLOR_WHITE);
+			break;
+			case 10:
+			break;
+			case 13:
+			putchar(13);
+			putchar(10);
+			break;
+			case 17: /* CSR DOWN */
+			down_cursor();
+			break;
+			case 19: /* CSR HOME */
+			move_cursor(0, 0);
+			break;
+			case 28:
+			set_color(COLOR_RED);
+			break;
+			case 29: /* CSR RIGHT */
+			right_cursor();
+			break;
+			case 30:
+			set_color(COLOR_GREEN);
+			break;
+			case 31:
+			set_color(COLOR_BLUE);
+			break;
+			case 129:
+			set_color(COLOR_ORANGE);
+			break;
+			case 144:
+			set_color(COLOR_BLACK);
+			break;
+			case 145: /* CSR UP */
+			up_cursor();
+			break;
+			case 147: /* clear screen */
+#ifndef NO_CLRHOME
+			clear_screen();
+#endif
+			break;
+			case 149:
+			set_color(COLOR_BROWN);
+			break;
+			case 150:
+			set_color(COLOR_LTRED);
+			break;
+			case 151:
+			set_color(COLOR_GREY1);
+			break;
+			case 152:
+			set_color(COLOR_GREY2);
+			break;
+			case 153:
+			set_color(COLOR_LTGREEN);
+			break;
+			case 154:
+			set_color(COLOR_LTBLUE);
+			break;
+			case 155:
+			set_color(COLOR_GREY3);
+			break;
+			case 156:
+			set_color(COLOR_PURPLE);
+			break;
+			case 158:
+			set_color(COLOR_YELLOW);
+			break;
+			case 159:
+			set_color(COLOR_CYAN);
+			break;
+			case 157: /* CSR LEFT */
+			left_cursor();
+			break;
+			case '"':
+			kernal_quote = 1;
+			// fallthrough
+			default:
+			putchar(a);
+		}
+	}
+	fflush(stdout);
+	set_c(0);
+}
+
 /* CHROUT */
 static void
 CHROUT() {
 #if 0
-int a = *(unsigned short*)(&RAM[0x0100+sp+1]) + 1;
-int b = *(unsigned short*)(&RAM[0x0100+sp+3]) + 1;
-int c = *(unsigned short*)(&RAM[0x0100+sp+5]) + 1;
-int d = *(unsigned short*)(&RAM[0x0100+sp+7]) + 1;
-printf("CHROUT: %d @ %x,%x,%x,%x\n", A, a, b, c, d);
+	int a = *(unsigned short*)(&RAM[0x0100+sp+1]) + 1;
+	int b = *(unsigned short*)(&RAM[0x0100+sp+3]) + 1;
+	int c = *(unsigned short*)(&RAM[0x0100+sp+5]) + 1;
+	int d = *(unsigned short*)(&RAM[0x0100+sp+7]) + 1;
+	printf("CHROUT: %d @ %x,%x,%x,%x\n", A, a, b, c, d);
 #endif
 
-#if 0
-	printf("CHROUT: %c (%d)\n", A, A);
-#else
     if (kernal_output) {
         if (fputc(a, kernal_files[kernal_output]) == EOF) {
             set_c(1);
@@ -348,95 +482,7 @@ printf("CHROUT: %d @ %x,%x,%x,%x\n", A, a, b, c, d);
         } else
             set_c(0);
     } else {
-        if (kernal_quote) {
-            if (a == '"' || a == '\n' || a == '\r') kernal_quote = 0;
-            putchar(a);
-        } else {
-            switch (a) {
-                case 5:
-                    set_color(COLOR_WHITE);
-                    break;
-                case 10:
-                    break;
-                case 13:
-                    putchar(13);
-                    putchar(10);
-                    break;
-                case 17: /* CSR DOWN */
-                    down_cursor();
-                    break;
-                case 19: /* CSR HOME */
-                    move_cursor(0, 0);
-                    break;
-                case 28:
-                    set_color(COLOR_RED);
-                    break;
-                case 29: /* CSR RIGHT */
-                    right_cursor();
-                    break;
-                case 30:
-                    set_color(COLOR_GREEN);
-                    break;
-                case 31:
-                    set_color(COLOR_BLUE);
-                    break;
-                case 129:
-                    set_color(COLOR_ORANGE);
-                    break;
-                case 144:
-                    set_color(COLOR_BLACK);
-                    break;
-                case 145: /* CSR UP */
-                    up_cursor();
-                    break;
-                case 147: /* clear screen */
-#ifndef NO_CLRHOME
-                    clear_screen();
-#endif
-                    break;
-                case 149:
-                    set_color(COLOR_BROWN);
-                    break;
-                case 150:
-                    set_color(COLOR_LTRED);
-                    break;
-                case 151:
-                    set_color(COLOR_GREY1);
-                    break;
-                case 152:
-                    set_color(COLOR_GREY2);
-                    break;
-                case 153:
-                    set_color(COLOR_LTGREEN);
-                    break;
-                case 154:
-                    set_color(COLOR_LTBLUE);
-                    break;
-                case 155:
-                    set_color(COLOR_GREY3);
-                    break;
-                case 156:
-                    set_color(COLOR_PURPLE);
-                    break;
-                case 158:
-                    set_color(COLOR_YELLOW);
-                    break;
-                case 159:
-                    set_color(COLOR_CYAN);
-                    break;
-                case 157: /* CSR LEFT */
-                    left_cursor();
-                    break;
-                case '"':
-                    kernal_quote = 1;
-                    // fallthrough
-                default:
-                    putchar(a);
-            }
-        }
-#endif
-		fflush(stdout);
-		set_c(0);
+		SCROUT();
 	}
 }
 
@@ -765,11 +811,22 @@ IOBASE() {
 }
 
 int
-kernal_dispatch() {
-	//	printf("kernal_dispatch $%04X; ", pc); int i; printf("stack (%02X): ", sp); for (i=sp+1; i<0x100; i++) { printf("%02X ", RAM[0x0100+i]); } printf("\n"); }
+kernal_dispatch()
+{
+#if 0
+	if (pc != 0xffd2) {
+		printf("kernal_dispatch $%04X; ", pc);
+		printf("stack (%02X): ", sp);
+		for (int i=sp+1; i<0x100; i++) {
+			printf("%02X ", RAM[0x0100+i]);
+		}
+		printf("\n");
+	}
+#endif
 
 	unsigned int new_pc;
 	switch(pc) {
+		case 0xE716:	SCROUT();	break;
 		case 0xFF90:	SETMSG();	break;
 		case 0xFF99:	MEMTOP();	break;
 		case 0xFF9C:	MEMBOT();	break;
