@@ -44,6 +44,7 @@
 #include "console.h"
 #include "error.h"
 #include "cbmdos.h"
+#include "screen.h"
 
 #define MIN(a,b) (((a)<(b))?(a):(b))
 #define MAX(a,b) (((a)>(b))?(a):(b))
@@ -111,31 +112,30 @@ stack4(unsigned short a, unsigned short b, unsigned short c, unsigned short d) {
 #endif
 #define RAM_TOP 0xA000
 
-#define KERN_DEVICE_KEYBOARD 0
-#define KERN_DEVICE_CASSETTE 1
-#define KERN_DEVICE_RS232    2
-#define KERN_DEVICE_SCREEN   3
-#define KERN_DEVICE_PRINTER1 4
-#define KERN_DEVICE_PRINTER2 5
-#define KERN_DEVICE_PRINTER3 6
-#define KERN_DEVICE_PRINTER4 7
-#define KERN_DEVICE_DRIVE1   8
-#define KERN_DEVICE_DRIVE2   9
-#define KERN_DEVICE_DRIVE3   10
-#define KERN_DEVICE_DRIVE4   11
-#define KERN_DEVICE_DRIVE5   12
-#define KERN_DEVICE_DRIVE6   13
-#define KERN_DEVICE_DRIVE7   14
-#define KERN_DEVICE_DRIVE8   15
+#define KERN_DEVICE_KEYBOARD  0
+#define KERN_DEVICE_CASSETTE  1
+#define KERN_DEVICE_RS232     2
+#define KERN_DEVICE_SCREEN    3
+#define KERN_DEVICE_PRINTERU4 4
+#define KERN_DEVICE_PRINTERU5 5
+#define KERN_DEVICE_PRINTERU6 6
+#define KERN_DEVICE_PRINTERU7 7
+#define KERN_DEVICE_DRIVEU8   8
+#define KERN_DEVICE_DRIVEU9   9
+#define KERN_DEVICE_DRIVEU10  10
+#define KERN_DEVICE_DRIVEU11  11
+#define KERN_DEVICE_DRIVEU12  12
+#define KERN_DEVICE_DRIVEU13  13
+#define KERN_DEVICE_DRIVEU14  14
+#define KERN_DEVICE_DRIVEU15  15
 
 /* KERNAL internal state */
-uint8_t kernal_msgflag, kernal_status = 0;
-unsigned short kernal_filename;
-unsigned char kernal_filename_len;
-unsigned char kernal_lfn, kernal_dev, kernal_sec;
-int kernal_quote = 0;
-unsigned char kernal_output = KERN_DEVICE_SCREEN;
-unsigned char kernal_input = KERN_DEVICE_KEYBOARD;
+uint8_t kernal_msgflag, STATUS = 0;
+unsigned short FNADR;
+unsigned char FNLEN;
+unsigned char LA, FA, SA;
+unsigned char DFLTO = KERN_DEVICE_SCREEN;
+unsigned char DFLTN = KERN_DEVICE_KEYBOARD;
 
 uint8_t file_to_device[] = { 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF };
 
@@ -157,10 +157,10 @@ main(int argc, char **argv) {
 		fread(&RAM[load_address], 65536 - load_address, 1, binary);
 		fclose(binary);
 
-		RAM[0xfffc] = 0xd1;
-		RAM[0xfffd] = 0xfc;
-		RAM[0xfffe] = 0x1b;
-		RAM[0xffff] = 0xe6;
+//		RAM[0xfffc] = 0xd1;
+//		RAM[0xfffd] = 0xfc;
+//		RAM[0xfffe] = 0x1b;
+//		RAM[0xffff] = 0xe6;
 	} else {
 		printf("Usage: %s <filename>\n", argv[0]);
 		exit(1);
@@ -181,23 +181,16 @@ main(int argc, char **argv) {
 	return 0;
 }
 
-unsigned short orig_error, orig_main, orig_crnch, orig_qplop, orig_gone, orig_eval;
-
-void
-replace_vector(unsigned short address, unsigned short new, unsigned short *old) {
-	*old = RAM[address] | (RAM[address+1]<<8);
-	RAM[address] = (new)&0xFF;
-	RAM[address+1] = (new)>>8;
-}
-
 static void
-SETMSG() {
+SETMSG()
+{
 	kernal_msgflag = a;
-	a = kernal_status;
+	a = STATUS;
 }
 
 static void
-MEMTOP() {
+MEMTOP()
+{
 #if DEBUG /* CBMBASIC doesn't do this */
 	if (!C) {
 		printf("UNIMPL: set top of RAM");
@@ -210,7 +203,8 @@ MEMTOP() {
 
 /* MEMBOT */
 static void
-MEMBOT() {
+MEMBOT()
+{
 #if DEBUG /* CBMBASIC doesn't do this */
 	if (!C) {
 		printf("UNIMPL: set bot of RAM");
@@ -223,43 +217,46 @@ MEMBOT() {
 
 /* READST */
 static void
-READST() {
-	a = kernal_status;
+READST()
+{
+	a = STATUS;
 }
 
 /* SETLFS */
 static void
-SETLFS() {
-	kernal_lfn = a;
-	kernal_dev = x;
-	kernal_sec = y;
+SETLFS()
+{
+	LA = a;
+	FA = x;
+	SA = y;
 }
 
 /* SETNAM */
 static void
-SETNAM() {
-	kernal_filename = x | y << 8;
-	kernal_filename_len = a;
+SETNAM()
+{
+	FNADR = x | y << 8;
+	FNLEN = a;
 }
 
 /* OPEN */
 static void
 OPEN()
 {
-	kernal_status = 0;
-	if (file_to_device[kernal_lfn] != 0xFF) {
+	STATUS = 0;
+	if (file_to_device[LA] != 0xFF) {
 		set_c(1);
 		a = KERN_ERR_FILE_OPEN;
 		return;
 	}
 
 	char filename[41];
-	uint8_t len = MIN(kernal_filename_len, sizeof(filename) - 1);
-	memcpy(filename, (char *)&RAM[kernal_filename], kernal_filename_len);
+	uint8_t len = MIN(FNLEN, sizeof(filename) - 1);
+	memcpy(filename, (char *)&RAM[FNADR], FNLEN);
 	filename[len] = 0;
-//	printf("OPEN %d,%d,%d,\"%s\"\n", kernal_lfn, kernal_dev, kernal_sec, filename);
+//	printf("OPEN %d,%d,%d,\"%s\"\n", LA, FA, SA, filename);
 
-	switch (kernal_dev) {
+	switch (FA) {
 		case KERN_DEVICE_KEYBOARD:
 		case KERN_DEVICE_CASSETTE:
 		case KERN_DEVICE_RS232:
@@ -268,27 +265,27 @@ OPEN()
 			return;
 		case KERN_DEVICE_SCREEN:
 			break;
-		case KERN_DEVICE_PRINTER1:
-		case KERN_DEVICE_PRINTER2:
-		case KERN_DEVICE_PRINTER3:
-		case KERN_DEVICE_PRINTER4:
+		case KERN_DEVICE_PRINTERU4:
+		case KERN_DEVICE_PRINTERU5:
+		case KERN_DEVICE_PRINTERU6:
+		case KERN_DEVICE_PRINTERU7:
 			set_c(1);
 			a = KERN_ERR_DEVICE_NOT_PRESENT;
 			return;
-		case KERN_DEVICE_DRIVE1:
-		case KERN_DEVICE_DRIVE2:
-		case KERN_DEVICE_DRIVE3:
-		case KERN_DEVICE_DRIVE4:
-		case KERN_DEVICE_DRIVE5:
-		case KERN_DEVICE_DRIVE6:
-		case KERN_DEVICE_DRIVE7:
-		case KERN_DEVICE_DRIVE8:
-			cbmdos_open(kernal_lfn, kernal_dev, kernal_sec, filename);
+		case KERN_DEVICE_DRIVEU8:
+		case KERN_DEVICE_DRIVEU9:
+		case KERN_DEVICE_DRIVEU10:
+		case KERN_DEVICE_DRIVEU11:
+		case KERN_DEVICE_DRIVEU12:
+		case KERN_DEVICE_DRIVEU13:
+		case KERN_DEVICE_DRIVEU14:
+		case KERN_DEVICE_DRIVEU15:
+			cbmdos_open(LA, FA, SA, filename);
 			break;
 	}
 
-	file_to_device[kernal_lfn] = kernal_dev;
-//	printf("file_to_device[%d] = %d\n", kernal_lfn, kernal_dev);
+	file_to_device[LA] = FA;
+//	printf("file_to_device[%d] = %d\n", LA, FA);
 }
 
 /* CLOSE */
@@ -307,20 +304,20 @@ CLOSE()
 		case KERN_DEVICE_CASSETTE:
 		case KERN_DEVICE_RS232:
 		case KERN_DEVICE_SCREEN:
-		case KERN_DEVICE_PRINTER1:
-		case KERN_DEVICE_PRINTER2:
-		case KERN_DEVICE_PRINTER3:
-		case KERN_DEVICE_PRINTER4:
+		case KERN_DEVICE_PRINTERU4:
+		case KERN_DEVICE_PRINTERU5:
+		case KERN_DEVICE_PRINTERU6:
+		case KERN_DEVICE_PRINTERU7:
 			set_c(0);
 			return;
-		case KERN_DEVICE_DRIVE1:
-		case KERN_DEVICE_DRIVE2:
-		case KERN_DEVICE_DRIVE3:
-		case KERN_DEVICE_DRIVE4:
-		case KERN_DEVICE_DRIVE5:
-		case KERN_DEVICE_DRIVE6:
-		case KERN_DEVICE_DRIVE7:
-		case KERN_DEVICE_DRIVE8:
+		case KERN_DEVICE_DRIVEU8:
+		case KERN_DEVICE_DRIVEU9:
+		case KERN_DEVICE_DRIVEU10:
+		case KERN_DEVICE_DRIVEU11:
+		case KERN_DEVICE_DRIVEU12:
+		case KERN_DEVICE_DRIVEU13:
+		case KERN_DEVICE_DRIVEU14:
+		case KERN_DEVICE_DRIVEU15:
 			cbmdos_close(a, dev);
 			set_c(0);
 			break;
@@ -346,25 +343,25 @@ CHKIN()
 		case KERN_DEVICE_CASSETTE:
 		case KERN_DEVICE_RS232:
 		case KERN_DEVICE_SCREEN:
-		case KERN_DEVICE_PRINTER1:
-		case KERN_DEVICE_PRINTER2:
-		case KERN_DEVICE_PRINTER3:
-		case KERN_DEVICE_PRINTER4:
+		case KERN_DEVICE_PRINTERU4:
+		case KERN_DEVICE_PRINTERU5:
+		case KERN_DEVICE_PRINTERU6:
+		case KERN_DEVICE_PRINTERU7:
 			set_c(0);
 			break;
-		case KERN_DEVICE_DRIVE1:
-		case KERN_DEVICE_DRIVE2:
-		case KERN_DEVICE_DRIVE3:
-		case KERN_DEVICE_DRIVE4:
-		case KERN_DEVICE_DRIVE5:
-		case KERN_DEVICE_DRIVE6:
-		case KERN_DEVICE_DRIVE7:
-		case KERN_DEVICE_DRIVE8:
+		case KERN_DEVICE_DRIVEU8:
+		case KERN_DEVICE_DRIVEU9:
+		case KERN_DEVICE_DRIVEU10:
+		case KERN_DEVICE_DRIVEU11:
+		case KERN_DEVICE_DRIVEU12:
+		case KERN_DEVICE_DRIVEU13:
+		case KERN_DEVICE_DRIVEU14:
+		case KERN_DEVICE_DRIVEU15:
 			cbmdos_chkin(x, dev);
 			set_c(0);
 			break;
 	}
-	kernal_input = dev;
+	DFLTN = dev;
 }
 
 /* CHKOUT */
@@ -372,7 +369,6 @@ static void
 CHKOUT()
 {
 //	printf("CHKOUT %d\n", x);
-
 	uint8_t dev = file_to_device[x];
 	if (dev == 0xFF) {
 		set_c(1);
@@ -385,43 +381,43 @@ CHKOUT()
 		case KERN_DEVICE_CASSETTE:
 		case KERN_DEVICE_RS232:
 		case KERN_DEVICE_SCREEN:
-		case KERN_DEVICE_PRINTER1:
-		case KERN_DEVICE_PRINTER2:
-		case KERN_DEVICE_PRINTER3:
-		case KERN_DEVICE_PRINTER4:
+		case KERN_DEVICE_PRINTERU4:
+		case KERN_DEVICE_PRINTERU5:
+		case KERN_DEVICE_PRINTERU6:
+		case KERN_DEVICE_PRINTERU7:
 			set_c(0);
 			break;
-		case KERN_DEVICE_DRIVE1:
-		case KERN_DEVICE_DRIVE2:
-		case KERN_DEVICE_DRIVE3:
-		case KERN_DEVICE_DRIVE4:
-		case KERN_DEVICE_DRIVE5:
-		case KERN_DEVICE_DRIVE6:
-		case KERN_DEVICE_DRIVE7:
-		case KERN_DEVICE_DRIVE8:
+		case KERN_DEVICE_DRIVEU8:
+		case KERN_DEVICE_DRIVEU9:
+		case KERN_DEVICE_DRIVEU10:
+		case KERN_DEVICE_DRIVEU11:
+		case KERN_DEVICE_DRIVEU12:
+		case KERN_DEVICE_DRIVEU13:
+		case KERN_DEVICE_DRIVEU14:
+		case KERN_DEVICE_DRIVEU15:
 			cbmdos_chkout(x, dev);
 			set_c(0);
 			break;
 	}
 
-	kernal_output = dev;
-//	printf("%s:%d kernal_output: %d\n", __func__, __LINE__, kernal_output);
+	DFLTO = dev;
+//	printf("%s:%d DFLTO: %d\n", __func__, __LINE__, DFLTO);
 }
 
 /* CLRCHN */
 static void
 CLRCHN()
 {
-	kernal_output = KERN_DEVICE_SCREEN;
-	kernal_input = KERN_DEVICE_KEYBOARD;
+	DFLTO = KERN_DEVICE_SCREEN;
+	DFLTN = KERN_DEVICE_KEYBOARD;
 }
 
 /* BASIN */
 static void
 BASIN()
 {
-//	printf("%s:%d kernal_input: %d\n", __func__, __LINE__, kernal_input);
-	switch (kernal_input) {
+//	printf("%s:%d DFLTN: %d\n", __func__, __LINE__, DFLTN);
+	switch (DFLTN) {
 		case KERN_DEVICE_KEYBOARD:
 			a = getchar(); /* stdin */
 			if (a == '\n') {
@@ -431,117 +427,25 @@ BASIN()
 		case KERN_DEVICE_CASSETTE:
 		case KERN_DEVICE_RS232:
 		case KERN_DEVICE_SCREEN:
-		case KERN_DEVICE_PRINTER1:
-		case KERN_DEVICE_PRINTER2:
-		case KERN_DEVICE_PRINTER3:
-		case KERN_DEVICE_PRINTER4:
+		case KERN_DEVICE_PRINTERU4:
+		case KERN_DEVICE_PRINTERU5:
+		case KERN_DEVICE_PRINTERU6:
+		case KERN_DEVICE_PRINTERU7:
 			set_c(1);
 			return;
-		case KERN_DEVICE_DRIVE1:
-		case KERN_DEVICE_DRIVE2:
-		case KERN_DEVICE_DRIVE3:
-		case KERN_DEVICE_DRIVE4:
-		case KERN_DEVICE_DRIVE5:
-		case KERN_DEVICE_DRIVE6:
-		case KERN_DEVICE_DRIVE7:
-		case KERN_DEVICE_DRIVE8:
-			cbmdos_basin(kernal_input);
+		case KERN_DEVICE_DRIVEU8:
+		case KERN_DEVICE_DRIVEU9:
+		case KERN_DEVICE_DRIVEU10:
+		case KERN_DEVICE_DRIVEU11:
+		case KERN_DEVICE_DRIVEU12:
+		case KERN_DEVICE_DRIVEU13:
+		case KERN_DEVICE_DRIVEU14:
+		case KERN_DEVICE_DRIVEU15:
+			cbmdos_basin(DFLTN);
 			break;
 	}
 }
 
-static void
-screen_bsout()
-{
-	if (kernal_quote) {
-		if (a == '"' || a == '\n' || a == '\r') kernal_quote = 0;
-		putchar(a);
-	} else {
-		switch (a) {
-			case 5:
-				set_color(COLOR_WHITE);
-				break;
-			case 10:
-				break;
-			case 13:
-				putchar(13);
-				putchar(10);
-				break;
-			case 17: /* CSR DOWN */
-				down_cursor();
-				break;
-			case 19: /* CSR HOME */
-				move_cursor(0, 0);
-				break;
-			case 28:
-				set_color(COLOR_RED);
-				break;
-			case 29: /* CSR RIGHT */
-				right_cursor();
-				break;
-			case 30:
-				set_color(COLOR_GREEN);
-				break;
-			case 31:
-				set_color(COLOR_BLUE);
-				break;
-			case 129:
-				set_color(COLOR_ORANGE);
-				break;
-			case 144:
-				set_color(COLOR_BLACK);
-				break;
-			case 145: /* CSR UP */
-				up_cursor();
-				break;
-			case 147: /* clear screen */
-#ifndef NO_CLRHOME
-				clear_screen();
-#endif
-				break;
-			case 149:
-				set_color(COLOR_BROWN);
-				break;
-			case 150:
-				set_color(COLOR_LTRED);
-				break;
-			case 151:
-				set_color(COLOR_GREY1);
-				break;
-			case 152:
-				set_color(COLOR_GREY2);
-				break;
-			case 153:
-				set_color(COLOR_LTGREEN);
-				break;
-			case 154:
-				set_color(COLOR_LTBLUE);
-				break;
-			case 155:
-				set_color(COLOR_GREY3);
-				break;
-			case 156:
-				set_color(COLOR_PURPLE);
-				break;
-			case 158:
-				set_color(COLOR_YELLOW);
-				break;
-			case 159:
-				set_color(COLOR_CYAN);
-				break;
-			case 157: /* CSR LEFT */
-				left_cursor();
-				break;
-			case '"':
-				kernal_quote = 1;
-				// fallthrough
-			default:
-				putchar(a);
-		}
-	}
-	fflush(stdout);
-	set_c(0);
-}
 
 /* BSOUT */
 static void
@@ -552,10 +456,10 @@ BSOUT()
 	int a2 = *(unsigned short*)(&RAM[0x0100+sp+3]) + 1;
 	int a3 = *(unsigned short*)(&RAM[0x0100+sp+5]) + 1;
 	int a4 = *(unsigned short*)(&RAM[0x0100+sp+7]) + 1;
-	printf("+BSOUT: '%c' -> %d @ %x,%x,%x,%x: ---", a, kernal_output, a1, a2, a3, a4);
+	printf("+BSOUT: '%c' -> %d @ %x,%x,%x,%x: ---", a, DFLTO, a1, a2, a3, a4);
 #endif
-//	printf("%s:%d kernal_output: %d\n", __func__, __LINE__, kernal_output);
-	switch (kernal_output) {
+//	printf("%s:%d DFLTO: %d\n", __func__, __LINE__, DFLTO);
+	switch (DFLTO) {
 		case KERN_DEVICE_KEYBOARD:
 			set_c(1);
 			return;
@@ -568,24 +472,24 @@ BSOUT()
 		case KERN_DEVICE_SCREEN:
 			screen_bsout();
 			break;
-		case KERN_DEVICE_PRINTER1:
-		case KERN_DEVICE_PRINTER2:
-		case KERN_DEVICE_PRINTER3:
-		case KERN_DEVICE_PRINTER4:
+		case KERN_DEVICE_PRINTERU4:
+		case KERN_DEVICE_PRINTERU5:
+		case KERN_DEVICE_PRINTERU6:
+		case KERN_DEVICE_PRINTERU7:
 			set_c(1);
 			return;
-		case KERN_DEVICE_DRIVE1:
-		case KERN_DEVICE_DRIVE2:
-		case KERN_DEVICE_DRIVE3:
-		case KERN_DEVICE_DRIVE4:
-		case KERN_DEVICE_DRIVE5:
-		case KERN_DEVICE_DRIVE6:
-		case KERN_DEVICE_DRIVE7:
-		case KERN_DEVICE_DRIVE8:
-			cbmdos_bsout(kernal_output, a);
+		case KERN_DEVICE_DRIVEU8:
+		case KERN_DEVICE_DRIVEU9:
+		case KERN_DEVICE_DRIVEU10:
+		case KERN_DEVICE_DRIVEU11:
+		case KERN_DEVICE_DRIVEU12:
+		case KERN_DEVICE_DRIVEU13:
+		case KERN_DEVICE_DRIVEU14:
+		case KERN_DEVICE_DRIVEU15:
+			cbmdos_bsout(DFLTO);
 			break;
 	}
-	//	printf("--- BSOUT: '%c' -> %d @ %x,%x,%x,%x\n", a, kernal_output, a1, a2, a3, a4);
+	//	printf("--- BSOUT: '%c' -> %d @ %x,%x,%x,%x\n", a, DFLTO, a1, a2, a3, a4);
 }
 
 /* LOAD */
@@ -602,11 +506,11 @@ LOAD()
 		printf("UNIMPL: VERIFY\n");
 		exit(1);
 	}
-	if (!kernal_filename_len)
+	if (!FNLEN)
 		goto missing_file_name;
 
 	/* on special filename $ read directory entries and load they in the basic area memory */
-	if( RAM[kernal_filename]=='$' ) {
+	if( RAM[FNADR]=='$' ) {
 		DIR *dirp;
 		struct dirent *dp;
 		int i, file_size;
@@ -687,16 +591,16 @@ LOAD()
 		 }
 		 */
 		goto load_noerr;
-	} /* end if( RAM[kernal_filename]=='$' ) */
+	} /* end if( RAM[FNADR]=='$' ) */
 
-	savedbyte = RAM[kernal_filename+kernal_filename_len]; /* TODO possible overflow */
-	RAM[kernal_filename+kernal_filename_len] = 0;
+	savedbyte = RAM[FNADR+FNLEN]; /* TODO possible overflow */
+	RAM[FNADR+FNLEN] = 0;
 
 	/* on directory filename chdir on it */
-	if( (stat((char*)&RAM[kernal_filename], &st)) == -1 )
+	if( (stat((char*)&RAM[FNADR], &st)) == -1 )
 		goto file_not_found;
 	if(S_ISDIR(st.st_mode)) {
-		if( (chdir((char*)&RAM[kernal_filename])) == -1 )
+		if( (chdir((char*)&RAM[FNADR])) == -1 )
 			goto device_not_present;
 
 		RAM[0x0801] = RAM[0x0802] = 0;
@@ -705,11 +609,11 @@ LOAD()
 	}
 
 	/* on file load it read it and load in the basic area memory */
-	f = fopen((char*)&RAM[kernal_filename], "rb");
+	f = fopen((char*)&RAM[FNADR], "rb");
 	if (!f)
 		goto file_not_found;
 	start = ((unsigned char)fgetc(f)) | ((unsigned char)fgetc(f))<<8;
-	if (!kernal_sec)
+	if (!SA)
 		start = x | y<<8;
 	end = start + fread(&RAM[start], 1, 65536-start, f); /* TODO may overwrite ROM */
 	printf("LOADING FROM $%04X to $%04X\n", start, end);
@@ -751,14 +655,14 @@ SAVE()
 		a = KERN_ERR_NONE;
 		return;
 	}
-	if (!kernal_filename_len) {
+	if (!FNLEN) {
 		set_c(1);
 		a = KERN_ERR_MISSING_FILE_NAME;
 		return;
 	}
-	savedbyte = RAM[kernal_filename+kernal_filename_len]; /* TODO possible overflow */
-	RAM[kernal_filename+kernal_filename_len] = 0;
-	f = fopen((char*)&RAM[kernal_filename], "wb"); /* overwrite - these are not the COMMODORE DOS semantics! */
+	savedbyte = RAM[FNADR+FNLEN]; /* TODO possible overflow */
+	RAM[FNADR+FNLEN] = 0;
+	f = fopen((char*)&RAM[FNADR], "wb"); /* overwrite - these are not the COMMODORE DOS semantics! */
 	if (!f) {
 		set_c(1);
 		a = KERN_ERR_FILE_NOT_FOUND;

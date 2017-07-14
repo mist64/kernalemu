@@ -1,6 +1,6 @@
-void cbmdos_open(uint8_t lfn, uint8_t dev, uint8_t sec, const char *filename);
-void cbmdos_close(uint8_t lfn, uint8_t dev);
-void cbmdos_chkin(uint8_t lfn, uint8_t dev);
-void cbmdos_chkout(uint8_t lfn, uint8_t dev);
-void cbmdos_basin(uint8_t dev);
-void cbmdos_bsout(uint8_t device, uint8_t c);
+void cbmdos_open(uint8_t lfn, uint8_t unit, uint8_t sec, const char *filename);
+void cbmdos_close(uint8_t lfn, uint8_t unit);
+void cbmdos_chkin(uint8_t lfn, uint8_t unit);
+void cbmdos_chkout(uint8_t lfn, uint8_t unit);
+void cbmdos_basin(uint8_t unit);
+void cbmdos_bsout(uint8_t unit);

@@ -9,7 +9,7 @@
 #define KERN_ST_EOF 0x40
 
 extern void set_c(char f);
-extern uint8_t kernal_status;
+extern uint8_t STATUS;
 
 static const char disk_status[] = "00, OK,00,00\r";
 const char *disk_status_p = disk_status;
@@ -55,7 +55,7 @@ int kernal_files_next[] = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
 uint8_t in_lfn = 0, out_lfn = 0;
 
 void
-cbmdos_open(uint8_t lfn, uint8_t dev, uint8_t sec, const char *filename)
+cbmdos_open(uint8_t lfn, uint8_t unit, uint8_t sec, const char *filename)
 {
 	if (sec == 15) { // command channel
 		kernal_files[lfn] = (void *)-1;
@@ -94,28 +94,28 @@ cbmdos_open(uint8_t lfn, uint8_t dev, uint8_t sec, const char *filename)
 }
 
 void
-cbmdos_close(uint8_t lfn, uint8_t dev)
+cbmdos_close(uint8_t lfn, uint8_t unit)
 {
 	fclose(kernal_files[lfn]);
 	kernal_files[lfn] = 0;
 }
 
 void
-cbmdos_chkin(uint8_t lfn, uint8_t dev)
+cbmdos_chkin(uint8_t lfn, uint8_t unit)
 {
 	// TODO Check read/write mode
 	in_lfn = lfn;
 }
 
 void
-cbmdos_chkout(uint8_t lfn, uint8_t dev)
+cbmdos_chkout(uint8_t lfn, uint8_t unit)
 {
 	// TODO Check read/write mode
 	out_lfn = lfn;
 }
 
 void
-cbmdos_basin(uint8_t dev)
+cbmdos_basin(uint8_t unit)
 {
 //	printf("%s:%d LFN: %d\n", __func__, __LINE__, in_lfn);
 	if (kernal_files[in_lfn] == (void *)-1) {
@@ -127,25 +127,25 @@ cbmdos_basin(uint8_t dev)
 		}
 		set_c(0);
 	} else if (feof(kernal_files[in_lfn])) {
-		kernal_status |= KERN_ST_EOF;
-		kernal_status |= KERN_ST_TIME_OUT_READ;
+		STATUS |= KERN_ST_EOF;
+		STATUS |= KERN_ST_TIME_OUT_READ;
 		set_c(0);
 		a = 13;
 	} else {
 		a = fgetc(kernal_files[in_lfn]);
 		if (feof(kernal_files[in_lfn])) {
-			kernal_status |= KERN_ST_EOF;
+			STATUS |= KERN_ST_EOF;
 		}
 		set_c(0);
 	}
 }
 
 void
-cbmdos_bsout(uint8_t dev, uint8_t c)
+cbmdos_bsout(uint8_t unit)
 {
-	if (fputc(c, kernal_files[out_lfn]) == EOF) {
+	if (fputc(a, kernal_files[out_lfn]) == EOF) {
 		set_c(1);
-		a = KERN_ERR_NOT_OUTPUT_FILE;
+		STATUS = KERN_ERR_NOT_OUTPUT_FILE;
 	} else {
 		set_c(0);
 	}

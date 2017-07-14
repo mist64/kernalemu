@@ -1,0 +1,1 @@
+void screen_bsout();
