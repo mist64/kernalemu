@@ -1,8 +1,9 @@
 all:
-	cc -c console.c
-	cc -c runtime.c
-	cc -c fake6502.c
-	cc -o kernalemu console.o runtime.o fake6502.o
+	cc -O3 -c console.c
+	cc -O3 -c runtime.c
+	cc -O3 -c cbmdos.c
+	cc -O3 -c fake6502.c
+	cc -o kernalemu console.o cbmdos.o runtime.o fake6502.o
 
 clean:
 	rm *.o
