@@ -11,8 +11,17 @@
 extern void set_c(char f);
 extern uint8_t STATUS;
 
-static const char disk_status[] = "00, OK,00,00\r";
-const char *disk_status_p = disk_status;
+static const char DRIVE_STATUS_00[] = "00, OK,00,00\r";
+static const char DRIVE_STATUS_31[] = "31,SYNTAX ERROR,00,00\r";
+static const char DRIVE_STATUS_32[] = "32,SYNTAX ERROR,00,00\r";
+static const char DRIVE_STATUS_62[] = "62,FILE NOT FOUND,00,00\r";
+static const char DRIVE_STATUS_73[] = "73,CBM DOS FOR UNIX,00,00\r";
+
+const char *cur_drive_status;
+const char *drive_status_p;
+
+char command[41];
+char *command_p;
 
 //00,OK,00,00
 //01,FILES SCRATCHED,XX,00
@@ -50,9 +59,54 @@ const char *disk_status_p = disk_status;
 //74,DRIVE NOT READY,00,00
 
 FILE *kernal_files[] = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
-int kernal_files_next[] = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
 
-uint8_t in_lfn = 0, out_lfn = 0;
+uint8_t in_lfn = 0;
+uint8_t out_lfn = 0;
+
+static void
+set_drive_status(const char *drive_status)
+{
+	cur_drive_status = drive_status;
+	drive_status_p = drive_status;
+}
+
+void
+cbmdos_init()
+{
+	set_drive_status(DRIVE_STATUS_73);
+	command[0] = 0;
+	command_p = command;
+}
+
+static void
+interpret_command()
+{
+	*command_p = 0;
+	char *cr = strchr(command, '\r');
+	if (cr) {
+		*cr = 0;
+//		printf("COMMAND: %s", command);
+		switch (command[0]) {
+			case 'I':
+				set_drive_status(DRIVE_STATUS_00);
+				break;
+			case 'U':
+				switch (command[1]) {
+					case 'I':
+					case 'J':
+						set_drive_status(DRIVE_STATUS_73);
+						break;
+					default:
+						set_drive_status(DRIVE_STATUS_31);
+						break;
+				}
+			default:
+				set_drive_status(DRIVE_STATUS_31);
+				break;
+		}
+		command_p = command;
+	}
+}
 
 void
 cbmdos_open(uint8_t lfn, uint8_t unit, uint8_t sec, const char *filename)
@@ -60,11 +114,25 @@ cbmdos_open(uint8_t lfn, uint8_t unit, uint8_t sec, const char *filename)
 	if (sec == 15) { // command channel
 		kernal_files[lfn] = (void *)-1;
 		set_c(0);
+		if (command_p - command + strlen(filename) > sizeof(command) - 2) {
+			set_drive_status(DRIVE_STATUS_32);
+		} else {
+			strcpy(command_p, filename);
+			command_p += strlen(filename);
+			*command_p = '\r';
+			command_p++;
+			interpret_command();
+		}
 	} else {
 		if (!strlen(filename)) {
 			set_c(1);
 			a = KERN_ERR_MISSING_FILE_NAME;
 			return;
+		}
+
+		// remove "0:" etc. prefix
+		if (filename[0] >= '0' && filename[0] <= '9' && filename[1] == ':') {
+			filename += 2;
 		}
 
 		char *mode = "r";
@@ -82,13 +150,16 @@ cbmdos_open(uint8_t lfn, uint8_t unit, uint8_t sec, const char *filename)
 			}
 			//				printf("(%c, %c, %s)\n", type, mode_c, mode);
 		}
+
+		// TODO: resolve wildcards
+
 		kernal_files[lfn] = fopen(filename, mode);
 		if (kernal_files[lfn]) {
-			kernal_files_next[lfn] = EOF;
 			set_c(0);
 		} else {
 			set_c(1);
 			a = KERN_ERR_FILE_NOT_FOUND;
+			set_drive_status(DRIVE_STATUS_62);
 		}
 	}
 }
@@ -120,10 +191,10 @@ cbmdos_basin(uint8_t unit)
 //	printf("%s:%d LFN: %d\n", __func__, __LINE__, in_lfn);
 	if (kernal_files[in_lfn] == (void *)-1) {
 		// command channel
-		a = *disk_status_p;
-		disk_status_p++;
-		if (!*disk_status_p) {
-			disk_status_p = disk_status;
+		a = *drive_status_p;
+		drive_status_p++;
+		if (!*drive_status_p) {
+			drive_status_p = cur_drive_status;
 		}
 		set_c(0);
 	} else if (feof(kernal_files[in_lfn])) {
@@ -143,10 +214,21 @@ cbmdos_basin(uint8_t unit)
 void
 cbmdos_bsout(uint8_t unit)
 {
-	if (fputc(a, kernal_files[out_lfn]) == EOF) {
-		set_c(1);
-		STATUS = KERN_ERR_NOT_OUTPUT_FILE;
+	if (kernal_files[out_lfn] == (void *)-1) {
+		if (command_p - command > sizeof(command) - 1) {
+			set_drive_status(DRIVE_STATUS_32);
+			set_c(0);
+		} else {
+			*command_p = a;
+			command_p++;
+			interpret_command();
+		}
 	} else {
-		set_c(0);
+		if (fputc(a, kernal_files[out_lfn]) == EOF) {
+			set_c(1);
+			STATUS = KERN_ERR_NOT_OUTPUT_FILE;
+		} else {
+			set_c(0);
+		}
 	}
 }

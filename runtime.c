@@ -51,10 +51,6 @@
 
 unsigned char RAM[65536];
 
-//unsigned char A, X, Y, S;
-//unsigned short PC;
-//unsigned char V, B, D, I, C, N, Z;
-
 extern void reset6502();
 void step6502();
 extern void exec6502(uint32_t tickcount);
@@ -169,6 +165,8 @@ main(int argc, char **argv) {
 
 	reset6502();
 	pc = 2063; /* entry point of assembler64 */
+
+	cbmdos_init();
 
 	for (;;) {
 		step6502();
