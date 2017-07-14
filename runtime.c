@@ -70,18 +70,18 @@ set_z(char f)
 uint8_t
 read6502(uint16_t address)
 {
-	if (address >= 0xa000) {
-		//		printf("R %04x\n", address);
-	}
+//	if (address >= 0xa000) {
+//		printf("R %04x\n", address);
+//	}
 	return RAM[address];
 }
 
 void
 write6502(uint16_t address, uint8_t value)
 {
-	if (address >= 0xa000) {
-		//		printf("W %04x\n", address);
-	}
+//	if (address >= 0xa000) {
+//		printf("W %04x\n", address);
+//	}
 	RAM[address] = value;
 }
 
@@ -150,6 +150,8 @@ main(int argc, char **argv) {
 		}
 		uint16_t load_address = fgetc(binary);
 		load_address |= fgetc(binary) << 8;
+		printf("load_address = %04x\n", load_address);
+		printf("load_address = %04x\n", 65536 - load_address);
 		fread(&RAM[load_address], 65536 - load_address, 1, binary);
 		fclose(binary);
 
@@ -164,13 +166,16 @@ main(int argc, char **argv) {
 	srand((unsigned int)time(NULL));
 
 	reset6502();
-	pc = 2063; /* entry point of assembler64 */
+	sp = 0xff;
+
+//	pc = 2063; /* entry point of assembler64 */
+	pc = 0xe394; /* entry point of basic */
 
 	cbmdos_init();
 
 	for (;;) {
+//		printf("pc = %04x; %02x %02x %02x\n", pc, RAM[pc], RAM[pc+1], RAM[pc+2]);
 		step6502();
-		//		printf("pc = %04x; %02x %02x %02x\n", pc, RAM[pc], RAM[pc+1], RAM[pc+2]);
 		if (!RAM[pc]) {
 			kernal_dispatch();
 		}
