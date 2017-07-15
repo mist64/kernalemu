@@ -439,7 +439,8 @@ BASIN()
 		case KERN_DEVICE_DRIVEU13:
 		case KERN_DEVICE_DRIVEU14:
 		case KERN_DEVICE_DRIVEU15:
-			cbmdos_basin(DFLTN);
+			a = cbmdos_basin(DFLTN, &STATUS);
+			set_c(0);
 			break;
 	}
 }
@@ -485,7 +486,8 @@ BSOUT()
 		case KERN_DEVICE_DRIVEU13:
 		case KERN_DEVICE_DRIVEU14:
 		case KERN_DEVICE_DRIVEU15:
-			cbmdos_bsout(DFLTO);
+			STATUS = cbmdos_bsout(DFLTO, a);
+			set_c(STATUS);
 			break;
 	}
 	//	printf("--- BSOUT: '%c' -> %d @ %x,%x,%x,%x\n", a, DFLTO, a1, a2, a3, a4);

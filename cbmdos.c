@@ -5,12 +5,8 @@
 #include <unistd.h>
 #include <sys/stat.h>
 #include "readdir.h"
-#include "glue.h"
 #include "error.h"
 #include "cbmdos.h"
-
-extern void set_c(char f);
-extern uint8_t STATUS;
 
 static const char DRIVE_STATUS_00[] = "00, OK,00,00\r";
 static const char DRIVE_STATUS_31[] = "31,SYNTAX ERROR,00,00\r";
@@ -210,7 +206,6 @@ cbmdos_open(uint8_t lfn, uint8_t unit, uint8_t sec, const char *filename)
 {
 	if (sec == 15) { // command channel
 		files[lfn] = FILE_COMMAND_CHANNEL;
-		set_c(0);
 		if (command_p - command + strlen(filename) > sizeof(command) - 2) {
 			set_drive_status(DRIVE_STATUS_32);
 		} else {
@@ -288,7 +283,6 @@ cbmdos_close(uint8_t lfn, uint8_t unit)
 			fclose(files[lfn]);
 			break;
 	}
-	set_c(0);
 	files[lfn] = 0;
 }
 
@@ -306,51 +300,51 @@ cbmdos_chkout(uint8_t lfn, uint8_t unit)
 	out_lfn = lfn;
 }
 
-void
-cbmdos_basin(uint8_t unit)
+uint8_t
+cbmdos_basin(uint8_t unit, uint8_t *status)
 {
 //	printf("%s:%d LFN: %d\n", __func__, __LINE__, in_lfn);
+	uint8_t c;
 	if (files[in_lfn] == FILE_COMMAND_CHANNEL) {
 		// command channel
-		a = *drive_status_p;
+		c = *drive_status_p;
 		drive_status_p++;
 		if (!*drive_status_p) {
 			drive_status_p = cur_drive_status;
 		}
 	} else if (files[in_lfn] == FILE_DIRECTORY) {
-		a = *directory_data_p++;
+		c = *directory_data_p++;
 		if (directory_data_p == directory_data_end) {
-			STATUS |= KERN_ST_EOF;
-			STATUS |= KERN_ST_TIME_OUT_READ;
+			*status = KERN_ST_EOF | KERN_ST_TIME_OUT_READ;
 			directory_data_p--;
 		}
 	} else {
-		a = fgetc(files[in_lfn]);
+		c = fgetc(files[in_lfn]);
 		if (feof(files[in_lfn])) {
-			STATUS |= KERN_ST_EOF;
+			*status = KERN_ST_EOF;
 		}
 	}
-	set_c(0);
+	return c;
 }
 
-void
-cbmdos_bsout(uint8_t unit)
+int
+cbmdos_bsout(uint8_t unit, uint8_t c)
 {
 	if (files[out_lfn] == (void *)-1) {
+		// command channel
 		if (command_p - command > sizeof(command) - 1) {
 			set_drive_status(DRIVE_STATUS_32);
-			set_c(0);
 		} else {
-			*command_p = a;
+			*command_p = c;
 			command_p++;
 			interpret_command();
 		}
+		return KERN_ERR_NONE;
 	} else {
-		if (fputc(a, files[out_lfn]) == EOF) {
-			set_c(1);
-			STATUS = KERN_ERR_NOT_OUTPUT_FILE;
+		if (fputc(c, files[out_lfn]) == EOF) {
+			return KERN_ERR_NOT_OUTPUT_FILE;
 		} else {
-			set_c(0);
+			return KERN_ERR_NONE;
 		}
 	}
 }
