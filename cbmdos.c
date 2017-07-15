@@ -9,9 +9,6 @@
 #include "error.h"
 #include "cbmdos.h"
 
-#define KERN_ST_TIME_OUT_READ 0x02
-#define KERN_ST_EOF 0x40
-
 extern void set_c(char f);
 extern uint8_t STATUS;
 
@@ -63,7 +60,7 @@ char *command_p;
 //73,CBM DOS V2.6 1541,00,00
 //74,DRIVE NOT READY,00,00
 
-FILE *kernal_files[] = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+FILE *files[] = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
 
 #define FILE_COMMAND_CHANNEL (void *)1
 #define FILE_DIRECTORY       (void *)2
@@ -127,8 +124,6 @@ create_directory_listing()
 	DIR *dirp;
 	struct dirent *dp;
 	int file_size;
-	uint16_t end;
-	uint16_t old_memp;
 
 	// load address
 	*directory_data_p++ = 1;
@@ -140,7 +135,7 @@ create_directory_listing()
 	// line number
 	*directory_data_p++ = 0;
 	*directory_data_p++ = 0;
-	*directory_data_p++ = 0x12; /* REVERSE ON */
+	*directory_data_p++ = 0x12; // REVERSE ON
 	*directory_data_p++ = '"';
 	for (int i = 0; i < 16; i++) {
 		*directory_data_p++ = ' ';
@@ -163,7 +158,7 @@ create_directory_listing()
 	while ((dp = readdir(dirp))) {
 		size_t namlen = strlen(dp->d_name);
 		stat(dp->d_name, &st);
-		file_size = (st.st_size + 253)/254; /* convert file size from num of bytes to num of blocks(254 bytes) */
+		file_size = (st.st_size + 253)/254; // convert file size from num of bytes to num of blocks(254 bytes)
 		if (file_size > 0xFFFF) {
 			file_size = 0xFFFF;
 		}
@@ -185,7 +180,7 @@ create_directory_listing()
 		}
 		*directory_data_p++ = '"';
 		if (namlen > 16) {
-			namlen = 16; /* TODO hack */
+			namlen = 16; // TODO hack
 		}
 		memcpy(directory_data_p, dp->d_name, namlen);
 		directory_data_p += namlen;
@@ -214,7 +209,7 @@ int
 cbmdos_open(uint8_t lfn, uint8_t unit, uint8_t sec, const char *filename)
 {
 	if (sec == 15) { // command channel
-		kernal_files[lfn] = FILE_COMMAND_CHANNEL;
+		files[lfn] = FILE_COMMAND_CHANNEL;
 		set_c(0);
 		if (command_p - command + strlen(filename) > sizeof(command) - 2) {
 			set_drive_status(DRIVE_STATUS_32);
@@ -228,7 +223,7 @@ cbmdos_open(uint8_t lfn, uint8_t unit, uint8_t sec, const char *filename)
 		return true;
 	} else {
 		if (filename[0] == '$') {
-			kernal_files[lfn] = FILE_DIRECTORY;
+			files[lfn] = FILE_DIRECTORY;
 			if (create_directory_listing()) {
 				return KERN_ERR_NONE;
 			} else {
@@ -246,7 +241,8 @@ cbmdos_open(uint8_t lfn, uint8_t unit, uint8_t sec, const char *filename)
 		char *comma = strchr(filename, ',');
 		if (comma) {
 			*comma = 0;
-			char type = comma[1]; // 'S'/'P'/'U'/'L' - ignored
+			char type = comma[1]; // 'S'/'P'/'U'/'L'
+			(void)type; // ignored
 			char *comma2 = strchr(comma + 1, ',');
 			char mode_c = 0;
 			if (comma2) {
@@ -268,8 +264,8 @@ cbmdos_open(uint8_t lfn, uint8_t unit, uint8_t sec, const char *filename)
 
 		// TODO: "file exists"
 
-		kernal_files[lfn] = fopen(filename, mode);
-		if (kernal_files[lfn]) {
+		files[lfn] = fopen(filename, mode);
+		if (files[lfn]) {
 			return KERN_ERR_NONE;
 		} else {
 			set_drive_status(DRIVE_STATUS_62);
@@ -281,7 +277,7 @@ cbmdos_open(uint8_t lfn, uint8_t unit, uint8_t sec, const char *filename)
 void
 cbmdos_close(uint8_t lfn, uint8_t unit)
 {
-	switch ((long)kernal_files[lfn]) {
+	switch ((long)files[lfn]) {
 		case (long)FILE_COMMAND_CHANNEL:
 			// reset pointer
 			drive_status_p = cur_drive_status;
@@ -289,11 +285,11 @@ cbmdos_close(uint8_t lfn, uint8_t unit)
 		case (long)FILE_DIRECTORY:
 			break;
 		default:
-			fclose(kernal_files[lfn]);
+			fclose(files[lfn]);
 			break;
 	}
 	set_c(0);
-	kernal_files[lfn] = 0;
+	files[lfn] = 0;
 }
 
 void
@@ -314,14 +310,14 @@ void
 cbmdos_basin(uint8_t unit)
 {
 //	printf("%s:%d LFN: %d\n", __func__, __LINE__, in_lfn);
-	if (kernal_files[in_lfn] == FILE_COMMAND_CHANNEL) {
+	if (files[in_lfn] == FILE_COMMAND_CHANNEL) {
 		// command channel
 		a = *drive_status_p;
 		drive_status_p++;
 		if (!*drive_status_p) {
 			drive_status_p = cur_drive_status;
 		}
-	} else if (kernal_files[in_lfn] == FILE_DIRECTORY) {
+	} else if (files[in_lfn] == FILE_DIRECTORY) {
 		a = *directory_data_p++;
 		if (directory_data_p == directory_data_end) {
 			STATUS |= KERN_ST_EOF;
@@ -329,8 +325,8 @@ cbmdos_basin(uint8_t unit)
 			directory_data_p--;
 		}
 	} else {
-		a = fgetc(kernal_files[in_lfn]);
-		if (feof(kernal_files[in_lfn])) {
+		a = fgetc(files[in_lfn]);
+		if (feof(files[in_lfn])) {
 			STATUS |= KERN_ST_EOF;
 		}
 	}
@@ -340,7 +336,7 @@ cbmdos_basin(uint8_t unit)
 void
 cbmdos_bsout(uint8_t unit)
 {
-	if (kernal_files[out_lfn] == (void *)-1) {
+	if (files[out_lfn] == (void *)-1) {
 		if (command_p - command > sizeof(command) - 1) {
 			set_drive_status(DRIVE_STATUS_32);
 			set_c(0);
@@ -350,7 +346,7 @@ cbmdos_bsout(uint8_t unit)
 			interpret_command();
 		}
 	} else {
-		if (fputc(a, kernal_files[out_lfn]) == EOF) {
+		if (fputc(a, files[out_lfn]) == EOF) {
 			set_c(1);
 			STATUS = KERN_ERR_NOT_OUTPUT_FILE;
 		} else {

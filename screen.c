@@ -2,7 +2,7 @@
 #include "console.h"
 #include "glue.h"
 
-extern void set_c(char f);
+#define NO_CLRHOME
 
 int kernal_quote = 0;
 
@@ -10,7 +10,9 @@ void
 screen_bsout()
 {
 	if (kernal_quote) {
-		if (a == '"' || a == '\n' || a == '\r') kernal_quote = 0;
+		if (a == '"' || a == '\n' || a == '\r') {
+			kernal_quote = 0;
+		}
 		putchar(a);
 	} else {
 		switch (a) {
@@ -96,5 +98,4 @@ screen_bsout()
 		}
 	}
 	fflush(stdout);
-	set_c(0);
 }
