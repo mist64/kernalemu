@@ -1,4 +1,4 @@
-CFLAGS=-Wall -Werror -O3
+CFLAGS=-Wall -Werror -g
 
 all:
 	cc $(CFLAGS) -c console.c

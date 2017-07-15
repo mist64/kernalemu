@@ -78,10 +78,21 @@ set_drive_status(const char *drive_status)
 void
 cbmdos_init()
 {
+	// close all files if it's a device reset
+	for (int i = 0; i < sizeof(files) / sizeof(*files); i++) {
+		if (files[i] && files[i] != FILE_COMMAND_CHANNEL && files[i] != FILE_DIRECTORY) {
+			fclose(files[i]);
+		}
+		files[i] = 0;
+	}
+
 	set_drive_status(DRIVE_STATUS_73);
-	command[0] = 0;
-	command_p = command;
 }
+
+//10 OPEN1,8,15,"UI"
+//20 INPUT#1,A,B$,C,D
+//30 PRINTA,B$,C,D
+//RUN
 
 static void
 interpret_command()
@@ -90,21 +101,27 @@ interpret_command()
 	char *cr = strchr(command, '\r');
 	if (cr) {
 		*cr = 0;
-//		printf("COMMAND: %s", command);
+//		printf("COMMAND: \"%s\"", command);
 		switch (command[0]) {
+			case 0:
+				// empty command
+				break;
 			case 'I':
 				set_drive_status(DRIVE_STATUS_00);
 				break;
 			case 'U':
 				switch (command[1]) {
 					case 'I':
-					case 'J':
 						set_drive_status(DRIVE_STATUS_73);
+						break;
+					case 'J':
+						cbmdos_init();
 						break;
 					default:
 						set_drive_status(DRIVE_STATUS_31);
 						break;
 				}
+				break;
 			default:
 				set_drive_status(DRIVE_STATUS_31);
 				break;
@@ -206,16 +223,17 @@ cbmdos_open(uint8_t lfn, uint8_t unit, uint8_t sec, const char *filename)
 {
 	if (sec == 15) { // command channel
 		files[lfn] = FILE_COMMAND_CHANNEL;
-		if (command_p - command + strlen(filename) > sizeof(command) - 2) {
+
+		if (strlen(filename) > sizeof(command) - 2) {
 			set_drive_status(DRIVE_STATUS_32);
 		} else {
-			strcpy(command_p, filename);
-			command_p += strlen(filename);
+			strcpy(command, filename);
+			command_p = command + strlen(command);
 			*command_p = '\r';
 			command_p++;
 			interpret_command();
 		}
-		return true;
+		return KERN_ERR_NONE;
 	} else {
 		if (filename[0] == '$') {
 			files[lfn] = FILE_DIRECTORY;
@@ -318,11 +336,15 @@ cbmdos_basin(uint8_t unit, uint8_t *status)
 			*status = KERN_ST_EOF | KERN_ST_TIME_OUT_READ;
 			directory_data_p--;
 		}
-	} else {
+	} else if (files[in_lfn]) {
 		c = fgetc(files[in_lfn]);
 		if (feof(files[in_lfn])) {
 			*status = KERN_ST_EOF;
 		}
+	} else {
+		// file not open
+		*status = KERN_ST_EOF;
+		return 0;
 	}
 	return c;
 }
