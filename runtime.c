@@ -49,6 +49,9 @@
 #define MIN(a,b) (((a)<(b))?(a):(b))
 #define MAX(a,b) (((a)>(b))?(a):(b))
 
+#define KERN_ST_TIME_OUT_READ 0x02
+#define KERN_ST_EOF 0x40
+
 unsigned char RAM[65536];
 
 extern void reset6502();
@@ -283,11 +286,14 @@ OPEN()
 		case KERN_DEVICE_DRIVEU13:
 		case KERN_DEVICE_DRIVEU14:
 		case KERN_DEVICE_DRIVEU15:
-			cbmdos_open(LA, FA, SA, filename);
+			a = cbmdos_open(LA, FA, SA, filename);
+			set_c(a != KERN_ERR_NONE);
 			break;
 	}
 
-	file_to_device[LA] = FA;
+	if (!(a & 1)) {
+		file_to_device[LA] = FA;
+	}
 //	printf("file_to_device[%d] = %d\n", LA, FA);
 }
 
@@ -499,184 +505,109 @@ BSOUT()
 static void
 LOAD()
 {
-	FILE *f;
-	struct stat st;
-	unsigned short start;
-	unsigned short end;
-	unsigned char savedbyte;
+	int error = KERN_ERR_NONE;
 
-	if (a) {
-		printf("UNIMPL: VERIFY\n");
-		exit(1);
-	}
-	if (!FNLEN)
-		goto missing_file_name;
+	uint16_t override_address = (x | (y << 8));
 
-	/* on special filename $ read directory entries and load they in the basic area memory */
-	if( RAM[FNADR]=='$' ) {
-		DIR *dirp;
-		struct dirent *dp;
-		int i, file_size;
-		unsigned short old_memp, memp = 0x0801;  // TODO hack!
-
-		old_memp = memp;
-		memp += 2;
-		RAM[memp++] = 0;
-		RAM[memp++] = 0;
-		RAM[memp++] = 0x12; /* REVERS ON */
-		RAM[memp++] = '"';
-		for(i=0; i<16; i++)
-			RAM[memp+i] = ' ';
-		if( (getcwd((char*)&RAM[memp], 256)) == NULL )
-			goto device_not_present;
-		memp += strlen((char*)&RAM[memp]); /* only 16 on COMMODORE DOS */
-		RAM[memp++] = '"';
-		RAM[memp++] = ' ';
-		RAM[memp++] = '0';
-		RAM[memp++] = '0';
-		RAM[memp++] = ' ';
-		RAM[memp++] = '2';
-		RAM[memp++] = 'A';
-		RAM[memp++] = 0;
-
-		RAM[old_memp] = (memp) & 0xFF;
-		RAM[old_memp+1] = (memp) >> 8;
-
-		if ( !(dirp = opendir(".")) )
-			goto device_not_present;
-		while ((dp = readdir(dirp))) {
-			size_t namlen = strlen(dp->d_name);
-			stat(dp->d_name, &st);
-			file_size = (st.st_size + 253)/254; /* convert file size from num of bytes to num of blocks(254 bytes) */
-			if (file_size>0xFFFF)
-				file_size = 0xFFFF;
-			old_memp = memp;
-			memp += 2;
-			RAM[memp++] = file_size & 0xFF;
-			RAM[memp++] = file_size >> 8;
-			if (file_size<1000) {
-				RAM[memp++] = ' ';
-				if (file_size<100) {
-					RAM[memp++] = ' ';
-					if (file_size<10) {
-						RAM[memp++] = ' ';
-					}
-				}
-			}
-			RAM[memp++] = '"';
-			if (namlen>16)
-				namlen=16; /* TODO hack */
-			memcpy(&RAM[memp], dp->d_name, namlen);
-			memp += namlen;
-			RAM[memp++] = '"';
-			for (i=namlen; i<16; i++)
-				RAM[memp++] = ' ';
-			RAM[memp++] = ' ';
-			RAM[memp++] = 'P';
-			RAM[memp++] = 'R';
-			RAM[memp++] = 'G';
-			RAM[memp++] = ' ';
-			RAM[memp++] = ' ';
-			RAM[memp++] = 0;
-
-			RAM[old_memp] = (memp) & 0xFF;
-			RAM[old_memp+1] = (memp) >> 8;
-		}
-		RAM[memp] = 0;
-		RAM[memp+1] = 0;
-		(void)closedir(dirp);
-		end = memp + 2;
-		/*
-		 for (i=0; i<255; i++) {
-		 if (!(i&15))
-		 printf("\n %04X  ", 0x0800+i);
-		 printf("%02X ", RAM[0x0800+i]);
-		 }
-		 */
-		goto load_noerr;
-	} /* end if( RAM[FNADR]=='$' ) */
-
-	savedbyte = RAM[FNADR+FNLEN]; /* TODO possible overflow */
-	RAM[FNADR+FNLEN] = 0;
-
-	/* on directory filename chdir on it */
-	if( (stat((char*)&RAM[FNADR], &st)) == -1 )
-		goto file_not_found;
-	if(S_ISDIR(st.st_mode)) {
-		if( (chdir((char*)&RAM[FNADR])) == -1 )
-			goto device_not_present;
-
-		RAM[0x0801] = RAM[0x0802] = 0;
-		end = 0x0803;
-		goto load_noerr;
+	SA = 0; // read
+	OPEN();
+	if (status & 1) {
+		a = status;
+		return;
 	}
 
-	/* on file load it read it and load in the basic area memory */
-	f = fopen((char*)&RAM[FNADR], "rb");
-	if (!f)
-		goto file_not_found;
-	start = ((unsigned char)fgetc(f)) | ((unsigned char)fgetc(f))<<8;
-	if (!SA)
-		start = x | y<<8;
-	end = start + fread(&RAM[start], 1, 65536-start, f); /* TODO may overwrite ROM */
-	printf("LOADING FROM $%04X to $%04X\n", start, end);
-	fclose(f);
+	x = LA;
+	CHKIN();
 
-load_noerr:
-	x = end & 0xFF;
-	y = end >> 8;
-	set_c(0);
-	a = KERN_ERR_NONE;
-	return;
-file_not_found:
-	set_c(1);
-	a = KERN_ERR_FILE_NOT_FOUND;
-	return;
-device_not_present:
-	set_c(1);
-	a = KERN_ERR_DEVICE_NOT_PRESENT;
-	return;
-missing_file_name:
-	set_c(1);
-	a = KERN_ERR_MISSING_FILE_NAME;
-	return;
+	BASIN();
+	if (STATUS & KERN_ST_EOF) {
+		error = KERN_ERR_FILE_NOT_FOUND;
+		goto end;
+	}
+	uint16_t address = a;
+	BASIN();
+	if (STATUS & KERN_ST_EOF) {
+		error = KERN_ERR_FILE_NOT_FOUND;
+		goto end;
+	}
+	address |= a << 8;
+	if (!SA) {
+		address = override_address;
+	}
+//	printf("%04x\n", address);
+
+	do {
+		BASIN();
+		RAM[address++] = a;
+	} while (!(STATUS & KERN_ST_EOF));
+
+end:
+	CLRCHN();
+	a = LA;
+	CLOSE();
+	if (error != KERN_ERR_NONE) {
+		set_c(1);
+		a = error;
+	} else {
+		x = address & 0xff;
+		y = address >> 8;
+		set_c(0);
+		STATUS = 0;
+		a = 0;
+	}
+//	for (int i = 0; i < 255; i++) {
+//	 if (!(i & 15)) {
+//		 printf("\n %04X  ", 0x0800+i);
+//	 }
+//	 printf("%02X ", RAM[0x0800+i]);
+//	}
 }
 
 /* SAVE */
 static void
 SAVE()
 {
-	FILE *f;
-	unsigned char savedbyte;
-	unsigned short start;
-	unsigned short end;
-
-	start = RAM[a] | RAM[a+1]<<8;
-	end = x | y << 8;
-	if (end<start) {
+	uint16_t address = RAM[a] | RAM[a + 1] << 8;
+	uint16_t end = x | y << 8;
+	if (end < address) {
 		set_c(1);
 		a = KERN_ERR_NONE;
 		return;
 	}
-	if (!FNLEN) {
-		set_c(1);
-		a = KERN_ERR_MISSING_FILE_NAME;
+
+	int error = KERN_ERR_NONE;
+
+	SA = 1; // write
+	OPEN();
+	if (status & 1) {
+		a = status;
 		return;
 	}
-	savedbyte = RAM[FNADR+FNLEN]; /* TODO possible overflow */
-	RAM[FNADR+FNLEN] = 0;
-	f = fopen((char*)&RAM[FNADR], "wb"); /* overwrite - these are not the COMMODORE DOS semantics! */
-	if (!f) {
+
+	x = LA;
+	CHKOUT();
+
+	a = address & 0xff;;
+	BSOUT();
+	a = address >> 8;
+	BSOUT();
+
+	while (address != end) {
+		a = RAM[address++];
+		BSOUT();
+	};
+end:
+	CLRCHN();
+	a = LA;
+	CLOSE();
+	if (error != KERN_ERR_NONE) {
 		set_c(1);
-		a = KERN_ERR_FILE_NOT_FOUND;
-		return;
+		a = error;
+	} else {
+		set_c(0);
+		STATUS = 0;
+		a = 0;
 	}
-	fputc(start & 0xFF, f);
-	fputc(start >> 8, f);
-	fwrite(&RAM[start], end-start, 1, f);
-	fclose(f);
-	set_c(0);
-	a = KERN_ERR_NONE;
 }
 
 /* SETTIM */

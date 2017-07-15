@@ -1,6 +1,10 @@
 #include <stdint.h>
 #include <stdio.h>
+#include <stdbool.h>
 #include <string.h>
+#include <unistd.h>
+#include <sys/stat.h>
+#include "readdir.h"
 #include "glue.h"
 #include "error.h"
 #include "cbmdos.h"
@@ -16,6 +20,7 @@ static const char DRIVE_STATUS_31[] = "31,SYNTAX ERROR,00,00\r";
 static const char DRIVE_STATUS_32[] = "32,SYNTAX ERROR,00,00\r";
 static const char DRIVE_STATUS_62[] = "62,FILE NOT FOUND,00,00\r";
 static const char DRIVE_STATUS_73[] = "73,CBM DOS FOR UNIX,00,00\r";
+static const char DRIVE_STATUS_74[] = "74,DRIVE NOT READY,00,00\r";
 
 const char *cur_drive_status;
 const char *drive_status_p;
@@ -60,8 +65,15 @@ char *command_p;
 
 FILE *kernal_files[] = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
 
+#define FILE_COMMAND_CHANNEL (void *)1
+#define FILE_DIRECTORY       (void *)2
+
 uint8_t in_lfn = 0;
 uint8_t out_lfn = 0;
+
+uint8_t directory_data[65536];
+uint8_t *directory_data_p = directory_data;
+uint8_t *directory_data_end;
 
 static void
 set_drive_status(const char *drive_status)
@@ -108,11 +120,101 @@ interpret_command()
 	}
 }
 
-void
+static bool
+create_directory_listing()
+{
+	struct stat st;
+	DIR *dirp;
+	struct dirent *dp;
+	int file_size;
+	uint16_t end;
+	uint16_t old_memp;
+
+	// load address
+	*directory_data_p++ = 1;
+	*directory_data_p++ = 8;
+
+	// link
+	*directory_data_p++ = 1;
+	*directory_data_p++ = 1;
+	// line number
+	*directory_data_p++ = 0;
+	*directory_data_p++ = 0;
+	*directory_data_p++ = 0x12; /* REVERSE ON */
+	*directory_data_p++ = '"';
+	for (int i = 0; i < 16; i++) {
+		*directory_data_p++ = ' ';
+	}
+	if (!(getcwd((char *)directory_data_p - 16, 256))) {
+		return false;
+	}
+	*directory_data_p++ = '"';
+	*directory_data_p++ = ' ';
+	*directory_data_p++ = '0';
+	*directory_data_p++ = '0';
+	*directory_data_p++ = ' ';
+	*directory_data_p++ = '2';
+	*directory_data_p++ = 'A';
+	*directory_data_p++ = 0;
+
+	if (!(dirp = opendir("."))) {
+		return false;
+	}
+	while ((dp = readdir(dirp))) {
+		size_t namlen = strlen(dp->d_name);
+		stat(dp->d_name, &st);
+		file_size = (st.st_size + 253)/254; /* convert file size from num of bytes to num of blocks(254 bytes) */
+		if (file_size > 0xFFFF) {
+			file_size = 0xFFFF;
+		}
+
+		// link
+		*directory_data_p++ = 1;
+		*directory_data_p++ = 1;
+
+		*directory_data_p++ = file_size & 0xFF;
+		*directory_data_p++ = file_size >> 8;
+		if (file_size < 1000) {
+			*directory_data_p++ = ' ';
+			if (file_size < 100) {
+				*directory_data_p++ = ' ';
+				if (file_size < 10) {
+					*directory_data_p++ = ' ';
+				}
+			}
+		}
+		*directory_data_p++ = '"';
+		if (namlen > 16) {
+			namlen = 16; /* TODO hack */
+		}
+		memcpy(directory_data_p, dp->d_name, namlen);
+		directory_data_p += namlen;
+		*directory_data_p++ = '"';
+		for (int i = namlen; i < 16; i++) {
+			*directory_data_p++ = ' ';
+		}
+		*directory_data_p++ = ' ';
+		*directory_data_p++ = 'P';
+		*directory_data_p++ = 'R';
+		*directory_data_p++ = 'G';
+		*directory_data_p++ = ' ';
+		*directory_data_p++ = ' ';
+		*directory_data_p++ = 0;
+	}
+	// link
+	*directory_data_p++ = 0;
+	*directory_data_p++ = 0;
+	(void)closedir(dirp);
+	directory_data_end = directory_data_p;
+	directory_data_p = directory_data;
+	return true;
+}
+
+int
 cbmdos_open(uint8_t lfn, uint8_t unit, uint8_t sec, const char *filename)
 {
 	if (sec == 15) { // command channel
-		kernal_files[lfn] = (void *)-1;
+		kernal_files[lfn] = FILE_COMMAND_CHANNEL;
 		set_c(0);
 		if (command_p - command + strlen(filename) > sizeof(command) - 2) {
 			set_drive_status(DRIVE_STATUS_32);
@@ -123,11 +225,16 @@ cbmdos_open(uint8_t lfn, uint8_t unit, uint8_t sec, const char *filename)
 			command_p++;
 			interpret_command();
 		}
+		return true;
 	} else {
-		if (!strlen(filename)) {
-			set_c(1);
-			a = KERN_ERR_MISSING_FILE_NAME;
-			return;
+		if (filename[0] == '$') {
+			kernal_files[lfn] = FILE_DIRECTORY;
+			if (create_directory_listing()) {
+				return KERN_ERR_NONE;
+			} else {
+				set_drive_status(DRIVE_STATUS_74);
+				return KERN_ERR_FILE_NOT_FOUND;
+			}
 		}
 
 		// remove "0:" etc. prefix
@@ -135,7 +242,7 @@ cbmdos_open(uint8_t lfn, uint8_t unit, uint8_t sec, const char *filename)
 			filename += 2;
 		}
 
-		char *mode = "r";
+		char *mode = sec ? "w" : "r";
 		char *comma = strchr(filename, ',');
 		if (comma) {
 			*comma = 0;
@@ -151,15 +258,22 @@ cbmdos_open(uint8_t lfn, uint8_t unit, uint8_t sec, const char *filename)
 			//				printf("(%c, %c, %s)\n", type, mode_c, mode);
 		}
 
+		if (!strlen(filename)) {
+			return KERN_ERR_MISSING_FILE_NAME;
+		}
+
 		// TODO: resolve wildcards
+
+//		printf("%s:%d: %s\n",__func__, __LINE__, filename);
+
+		// TODO: "file exists"
 
 		kernal_files[lfn] = fopen(filename, mode);
 		if (kernal_files[lfn]) {
-			set_c(0);
+			return KERN_ERR_NONE;
 		} else {
-			set_c(1);
-			a = KERN_ERR_FILE_NOT_FOUND;
 			set_drive_status(DRIVE_STATUS_62);
+			return KERN_ERR_FILE_NOT_FOUND;
 		}
 	}
 }
@@ -167,7 +281,18 @@ cbmdos_open(uint8_t lfn, uint8_t unit, uint8_t sec, const char *filename)
 void
 cbmdos_close(uint8_t lfn, uint8_t unit)
 {
-	fclose(kernal_files[lfn]);
+	switch ((long)kernal_files[lfn]) {
+		case (long)FILE_COMMAND_CHANNEL:
+			// reset pointer
+			drive_status_p = cur_drive_status;
+			break;
+		case (long)FILE_DIRECTORY:
+			break;
+		default:
+			fclose(kernal_files[lfn]);
+			break;
+	}
+	set_c(0);
 	kernal_files[lfn] = 0;
 }
 
@@ -189,26 +314,27 @@ void
 cbmdos_basin(uint8_t unit)
 {
 //	printf("%s:%d LFN: %d\n", __func__, __LINE__, in_lfn);
-	if (kernal_files[in_lfn] == (void *)-1) {
+	if (kernal_files[in_lfn] == FILE_COMMAND_CHANNEL) {
 		// command channel
 		a = *drive_status_p;
 		drive_status_p++;
 		if (!*drive_status_p) {
 			drive_status_p = cur_drive_status;
 		}
-		set_c(0);
-	} else if (feof(kernal_files[in_lfn])) {
-		STATUS |= KERN_ST_EOF;
-		STATUS |= KERN_ST_TIME_OUT_READ;
-		set_c(0);
-		a = 13;
+	} else if (kernal_files[in_lfn] == FILE_DIRECTORY) {
+		a = *directory_data_p++;
+		if (directory_data_p == directory_data_end) {
+			STATUS |= KERN_ST_EOF;
+			STATUS |= KERN_ST_TIME_OUT_READ;
+			directory_data_p--;
+		}
 	} else {
 		a = fgetc(kernal_files[in_lfn]);
 		if (feof(kernal_files[in_lfn])) {
 			STATUS |= KERN_ST_EOF;
 		}
-		set_c(0);
 	}
+	set_c(0);
 }
 
 void
