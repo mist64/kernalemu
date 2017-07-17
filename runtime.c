@@ -1,28 +1,8 @@
-// Copyright (c) 2009 Michael Steil, James Abbatiello
-// All rights reserved.
-//
-// Redistribution and use in source and binary forms, with or without
-// modification, are permitted provided that the following conditions
-// are met:
-// 1. Redistributions of source code must retain the above copyright
-//    notice, this list of conditions and the following disclaimer.
-// 2. Redistributions in binary form must reproduce the above copyright
-//    notice, this list of conditions and the following disclaimer in the
-//    documentation and/or other materials provided with the distribution.
-//
-// THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS ``AS IS'' AND
-// ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-// IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
-// ARE DISCLAIMED.  IN NO EVENT SHALL THE AUTHOR OR CONTRIBUTORS BE LIABLE
-// FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
-// DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
-// OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
-// HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
-// LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
-// OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
-// SUCH DAMAGE.
+// Copyright (c) 2009 Michael Steil, James Abbatiello et al.
+// All rights reserved. License: 2-clause BSD
 
 #include <stdlib.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <string.h>
 #include <time.h>
@@ -132,36 +112,81 @@ int readycount = 0;
 
 int kernal_dispatch();
 
+uint16_t parse_num(char *s)
+{
+	if (s[0] == '$') {
+		s++;
+	} else if (s[0] == '0' && s[1] == 'x') {
+		s += 2;
+	}
+	return strtoul(s, NULL, 16);
+}
+
 int
 main(int argc, char **argv) {
 	if (argc <= 1) {
-		printf("Usage: %s <filename>\n", argv[0]);
+		printf("Usage: %s <filenames> [<arguments>]\n", argv[0]);
 		exit(1);
-	} else {
-		FILE *binary = fopen(argv[1], "r");
-		if (!binary) {
-			printf("Error opening: %s\n", argv[1]);
-			exit(1);
-		}
-		uint16_t load_address = fgetc(binary);
-		load_address |= fgetc(binary) << 8;
-//		printf("load_address = %04x\n", load_address);
-//		printf("load_address = %04x\n", 65536 - load_address);
-		fread(&RAM[load_address], 65536 - load_address, 1, binary);
-		fclose(binary);
-
-//		RAM[0xfffc] = 0xd1;
-//		RAM[0xfffd] = 0xfc;
-//		RAM[0xfffe] = 0x1b;
-//		RAM[0xffff] = 0xe6;
 	}
-	srand((unsigned int)time(NULL));
+
+	bool has_load_address = false;
+	uint16_t load_address;
+	bool has_start_address = false;
+	uint16_t start_address;
+	bool has_start_address_indirect = false;
+	uint16_t start_address_indirect;
+
+	for (int i = 1; i < argc; i++) {
+		if (argv[i][0] == '-') {
+			if (!strcmp(argv[i], "-start")) {
+				if (i == argc - 1) {
+					printf("%s: -start requires argument!\n", argv[0]);
+					exit(1);
+				}
+				start_address = parse_num(argv[i + 1 ]);
+				has_start_address = true;
+			} else if (!strcmp(argv[i], "-startind")) {
+				if (i == argc - 1) {
+					printf("%s: -startind requires argument!\n", argv[0]);
+					exit(1);
+				}
+				start_address_indirect = parse_num(argv[i + 1 ]);
+				has_start_address_indirect = true;
+			}
+			i++;
+		} else {
+			FILE *binary = fopen(argv[i], "r");
+			if (!binary) {
+				printf("Error opening: %s\n", argv[i]);
+				exit(1);
+			}
+			load_address = fgetc(binary) | fgetc(binary) << 8;
+			fread(&RAM[load_address], 65536 - load_address, 1, binary);
+			fclose(binary);
+			has_load_address = true;
+		}
+	}
+
+	//		RAM[0xfffc] = 0xd1;
+	//		RAM[0xfffd] = 0xfc;
+	//		RAM[0xfffe] = 0x1b;
+	//		RAM[0xffff] = 0xe6;
 
 	reset6502();
 	sp = 0xff;
 
-//	pc = 2063; // entry point of assembler64
-	pc = 0xe394; // entry point of basic
+	if (has_start_address) {
+		pc = start_address;
+	} else if (has_start_address_indirect) {
+		pc = RAM[start_address_indirect] | (RAM[start_address_indirect + 1] << 8);
+	} else if (has_load_address) {
+		pc = load_address;
+	} else {
+		printf("%s: You need to specify at least one binary file!\n", argv[0]);
+		exit(1);
+	}
+
+	srand((unsigned int)time(NULL));
 
 	cbmdos_init();
 
