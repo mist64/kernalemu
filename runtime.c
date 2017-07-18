@@ -27,6 +27,14 @@
 #include "channelio.h"
 #include "c128.h"
 
+enum {
+	MACHINE_PET,
+	MACHINE_PET4,
+	MACHINE_VIC20,
+	MACHINE_C64,
+	MACHINE_C128,
+} machine;
+
 //
 // interface for fake6502
 //
@@ -62,12 +70,7 @@ stack4(uint16_t a, uint16_t b, uint16_t c, uint16_t d) {
 	return 1;
 }
 
-//***********************************************************
-// KERNAL interface implementation                          *
-// http://members.tripod.com/~Frank_Kontros/kernal/addr.htm *
-//***********************************************************
-
-static int kernal_dispatch();
+static void kernal_dispatch();
 
 uint16_t parse_num(char *s)
 {
@@ -78,7 +81,6 @@ uint16_t parse_num(char *s)
 	}
 	return strtoul(s, NULL, 16);
 }
-
 int
 main(int argc, char **argv) {
 	if (argc <= 1) {
@@ -92,6 +94,7 @@ main(int argc, char **argv) {
 	uint16_t start_address;
 	bool has_start_address_indirect = false;
 	uint16_t start_address_indirect;
+	bool has_machine;
 
 	for (int i = 1; i < argc; i++) {
 		if (argv[i][0] == '-') {
@@ -109,6 +112,26 @@ main(int argc, char **argv) {
 				}
 				start_address_indirect = parse_num(argv[i + 1 ]);
 				has_start_address_indirect = true;
+			} else if (!strcmp(argv[i], "-machine")) {
+				if (i == argc - 1) {
+					printf("%s: -machine requires argument!\n", argv[0]);
+					exit(1);
+				}
+				if (!strcmp(argv[i + 1], "pet")) {
+					machine = MACHINE_PET;
+				} else if (!strcmp(argv[i + 1], "pet4")) {
+					machine = MACHINE_PET4;
+				} else if (!strcmp(argv[i + 1], "vic20")) {
+					machine = MACHINE_VIC20;
+				} else if (!strcmp(argv[i + 1], "c64")) {
+					machine = MACHINE_C64;
+				} else if (!strcmp(argv[i + 1], "c128")) {
+					machine = MACHINE_C128;
+				} else {
+					printf("%s: Valid values for \"-machine\" are pet, pet4, vic20, c64, c128!\n", argv[0]);
+					exit(1);
+				}
+				has_machine = true;
 			}
 			i++;
 		} else {
@@ -122,6 +145,10 @@ main(int argc, char **argv) {
 			fclose(binary);
 			has_load_address = true;
 		}
+	}
+
+	if (!has_machine) {
+		machine = MACHINE_C64;
 	}
 
 	//		RAM[0xfffc] = 0xd1;
@@ -213,65 +240,44 @@ RESTOR()
 static void VECTOR() { NYI(); }
 static void SCNKEY() { NYI(); }
 
-static int
-kernal_dispatch()
+static bool
+kernal_dispatch_pet()
 {
-#if 0
-	if (pc != 0xffd2) {
-		printf("kernal_dispatch $%04X; ", pc);
-		printf("stack (%02X): ", sp);
-		for (int i=sp+1; i<0x100; i++) {
-			printf("%02X ", RAM[0x0100+i]);
-		}
-		printf("\n");
-	}
-#endif
-
 	switch(pc) {
-			// C64 specific
-		case 0xE386:	exit(0);	break;
-		case 0xE716:	/*screen_bsout();*/	break;
+		case 0xFFC0:	OPEN();		break;
+		case 0xFFC3:	CLOSE();	break;
+		case 0xFFC6:	CHKIN();	break;
+		case 0xFFC9:	CHKOUT();	break;
+		case 0xFFCC:	CLRCHN();	break;
+		case 0xFFCF:	BASIN();	break;
+		case 0xFFD2:	BSOUT();	break;
+		case 0xFFD5:	LOAD();		break;
+		case 0xFFD8:	SAVE();		break;
 
-// C128 starts here
+			// time
+		case 0xFFDB:	SETTIM();	break;
+		case 0xFFDE:	RDTIM();	break;
 
-		case 0xFF47:	SPIN_SPOUT();	break;
-		case 0xFF4A:	CLOSE_ALL();	break;
-		case 0xFF4D:	C64MODE();	break;
-		case 0xFF50:	DMA_CALL();	break;
-		case 0xFF53:	BOOT_CALL();	break;
-		case 0xFF56:	PHOENIX();	break;
-		case 0xFF59:	LKUPLA();	break;
-		case 0xFF5C:	LKUPSA();	break;
-		case 0xFF5F:	SWAPPER();	break;
-		case 0xFF62:	DLCHR();	break;
-		case 0xFF65:	PFKEY();	break;
-		case 0xFF68:	SETBNK();	break;
-		case 0xFF6B:	GETCFG();	break;
-		case 0xFF6E:	JSRFAR();	break;
-		case 0xFF71:	JMPFAR();	break;
-		case 0xFF74:	INDFET();	break;
-		case 0xFF77:	INDSTA();	break;
-		case 0xFF7A:	INDCMP();	break;
-		case 0xFF7D:	PRIMM();	break;
+			// keyboard
+		case 0xFFE1:	STOP();		break;
+		case 0xFFE4:	GETIN();	break;
 
-// C64/+4 starts here
+			// channel I/O
+		case 0xFFE7:	CLALL();	break;
+			
+			// time
+		case 0xFFEA:	UDTIM();	break;
 
-			// init
-		case 0xFF81:	CINT();		break;
-		case 0xFF84:	IOINIT();	break;
-		case 0xFF87:	RAMTAS();	break;
+		default:
+			return false;
+	}
+	return true;
+}
 
-// VIC-20 starts here
-
-			// vectors
-		case 0xFF8A:	RESTOR();	break;
-		case 0xFF8D:	VECTOR();	break;
-
-			// channel io
-		case 0xFF90:	SETMSG();	break;
-
-// PET version 4 starts here
-
+static bool
+kernal_dispatch_pet4()
+{
+	switch(pc) {
 			// IEC
 		case 0xFF93:	SECOND();	break;
 		case 0xFF96:	TKSA();		break;
@@ -297,33 +303,22 @@ kernal_dispatch()
 		case 0xFFBA:	SETLFS();	break;
 		case 0xFFBD:	SETNAM();	break;
 
-// PET version 1/2/3 starts here
+		default:
+			return false;
+	}
+	return true;
+}
 
-		case 0xFFC0:	OPEN();		break;
-		case 0xFFC3:	CLOSE();	break;
-		case 0xFFC6:	CHKIN();	break;
-		case 0xFFC9:	CHKOUT();	break;
-		case 0xFFCC:	CLRCHN();	break;
-		case 0xFFCF:	BASIN();	break;
-		case 0xFFD2:	BSOUT();	break;
-		case 0xFFD5:	LOAD();		break;
-		case 0xFFD8:	SAVE();		break;
+static bool
+kernal_dispatch_vic()
+{
+	switch(pc) {
+			// vectors
+		case 0xFF8A:	RESTOR();	break;
+		case 0xFF8D:	VECTOR();	break;
 
-			// time
-		case 0xFFDB:	SETTIM();	break;
-		case 0xFFDE:	RDTIM();	break;
-
-			// keyboard
-		case 0xFFE1:	STOP();		break;
-		case 0xFFE4:	GETIN();	break;
-
-			// channel I/O
-		case 0xFFE7:	CLALL();	break;
-
-			// time
-		case 0xFFEA:	UDTIM();	break;
-
-// PET version 1/2/3/4 ends here
+			// channel io
+		case 0xFF90:	SETMSG();	break;
 
 			// screen
 		case 0xFFED:	SCREEN();	break;
@@ -332,16 +327,114 @@ kernal_dispatch()
 			// VIA/CIA
 		case 0xFFF3:	IOBASE();	break;
 
-// VIC-20/C64/+4/C128 ends here
-
-// CBM2:
-// * has vectors $FF90-$FFF3 (so it's compatible with PET 1/2/3/4)
-// * extra vectors $FF6C-$FF8D are incompatible
-
-		default: printf("unknown PC=$%04X S=$%02X\n", pc, sp); exit(1);
+		default:
+			return false;
 	}
+	return true;
+}
+
+static bool
+kernal_dispatch_c64()
+{
+	switch(pc) {
+			// init
+		case 0xFF81:	CINT();		break;
+		case 0xFF84:	IOINIT();	break;
+		case 0xFF87:	RAMTAS();	break;
+
+		default:
+			return false;
+	}
+	return true;
+}
+
+static bool
+kernal_dispatch_c128()
+{
+	switch(pc) {
+		case 0xFF47:	SPIN_SPOUT();	break;
+		case 0xFF4A:	CLOSE_ALL();	break;
+		case 0xFF4D:	C64MODE();	break;
+		case 0xFF50:	DMA_CALL();	break;
+		case 0xFF53:	BOOT_CALL();	break;
+		case 0xFF56:	PHOENIX();	break;
+		case 0xFF59:	LKUPLA();	break;
+		case 0xFF5C:	LKUPSA();	break;
+		case 0xFF5F:	SWAPPER();	break;
+		case 0xFF62:	DLCHR();	break;
+		case 0xFF65:	PFKEY();	break;
+		case 0xFF68:	SETBNK();	break;
+		case 0xFF6B:	GETCFG();	break;
+		case 0xFF6E:	JSRFAR();	break;
+		case 0xFF71:	JMPFAR();	break;
+		case 0xFF74:	INDFET();	break;
+		case 0xFF77:	INDSTA();	break;
+		case 0xFF7A:	INDCMP();	break;
+		case 0xFF7D:	PRIMM();	break;
+
+		default:
+			return false;
+	}
+	return true;
+}
+
+static bool
+kernal_dispatch_c64_internal()
+{
+	switch(pc) {
+			// C64 specific
+		case 0xE386:	exit(0);	break;
+		case 0xE716:	/*screen_bsout();*/	break;
+
+		default:
+			return false;
+	}
+	return true;
+}
+
+static void
+kernal_dispatch()
+{
+#if 0
+	if (pc != 0xffd2) {
+		printf("kernal_dispatch $%04X; ", pc);
+		printf("stack (%02X): ", sp);
+		for (int i = sp + 1; i < 0x100; i++) {
+			printf("%02X ", RAM[0x0100 + i]);
+		}
+		printf("\n");
+	}
+#endif
+
+	// check KERNAL calls according to API level
+	bool success = kernal_dispatch_pet();
+	if (!success && machine >= MACHINE_PET4) {
+		success = kernal_dispatch_pet4();
+	}
+	if (!success && machine >= MACHINE_VIC20) {
+		success = kernal_dispatch_vic();
+	}
+	if (!success && machine >= MACHINE_C64) {
+		success = kernal_dispatch_c64();
+	}
+	if (!success && machine >= MACHINE_C128) {
+		success = kernal_dispatch_c128();
+	}
+	// CBM2:
+	// * has vectors $FF90-$FFF3 (so it's compatible with PET 1/2/3/4)
+	// * extra vectors $FF6C-$FF8D are incompatible
+
+	// check private KERNAL calls on the specicif machine
+	if (!success && machine == MACHINE_C64) {
+		success = kernal_dispatch_c64_internal();
+	}
+
+	if (!success) {
+		printf("unknown PC=$%04X S=$%02X\n", pc, sp);
+		exit(1);
+	}
+
 	pc = (RAM[0x100 + sp + 1] | (RAM[0x100 + sp + 2] << 8)) + 1;
 	sp += 2;
-	return 1;
 }
 
