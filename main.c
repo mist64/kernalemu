@@ -20,12 +20,15 @@
 static uint16_t
 parse_num(char *s)
 {
+	int base = 10;
 	if (s[0] == '$') {
 		s++;
+		base = 16;
 	} else if (s[0] == '0' && s[1] == 'x') {
 		s += 2;
+		base = 16;
 	}
-	return strtoul(s, NULL, 16);
+	return strtoul(s, NULL, base);
 }
 int
 main(int argc, char **argv)

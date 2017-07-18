@@ -27,14 +27,24 @@
 #define KERN_DEVICE_DRIVEU14  14
 #define KERN_DEVICE_DRIVEU15  15
 
-uint8_t kernal_msgflag, STATUS = 0;
+uint8_t kernal_msgflag;
+uint8_t *STATUS_p;
 uint16_t FNADR;
 uint8_t FNLEN;
 uint8_t LA, FA, SA;
 uint8_t DFLTO = KERN_DEVICE_SCREEN;
 uint8_t DFLTN = KERN_DEVICE_KEYBOARD;
 
+#define STATUS (*STATUS_p)
+
 uint8_t file_to_device[] = { 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF };
+
+void
+channelio_init()
+{
+	STATUS_p = &RAM[0x90];
+	STATUS = 0;
+}
 
 // SETMSG - Control KERNAL messages
 void
@@ -84,7 +94,7 @@ OPEN()
 	uint8_t len = MIN(FNLEN, sizeof(filename) - 1);
 	memcpy(filename, (char *)&RAM[FNADR], FNLEN);
 	filename[len] = 0;
-	//	printf("OPEN %d,%d,%d,\"%s\"\n", LA, FA, SA, filename);
+		printf("OPEN %d,%d,%d,\"%s\"\n", LA, FA, SA, filename);
 
 	switch (FA) {
 		case KERN_DEVICE_KEYBOARD:
@@ -164,7 +174,7 @@ void
 CHKIN()
 {
 	uint8_t dev = file_to_device[x];
-	//	printf("CHKIN %d (dev %d)\n", x, dev);
+		printf("CHKIN %d (dev %d)\n", x, dev);
 	if (dev == 0xFF) {
 		set_c(1);
 		a = KERN_ERR_FILE_NOT_OPEN;
@@ -249,7 +259,7 @@ CLRCHN()
 void
 BASIN()
 {
-	//	printf("%s:%d DFLTN: %d\n", __func__, __LINE__, DFLTN);
+//		printf("%s:%d DFLTN: %d\n", __func__, __LINE__, DFLTN);
 	switch (DFLTN) {
 		case KERN_DEVICE_KEYBOARD:
 			a = getchar(); // stdin

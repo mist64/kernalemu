@@ -22,11 +22,9 @@ kernal_init()
 	// make sure KERNAL jump table traps
 	memset(&RAM[0xFF00], 0, 0x100);
 
-	// init I/O
 	IOINIT();
-	// init RAM
 	RAMTAS();
-	// init CBMDOS device
+	channelio_init();
 	cbmdos_init();
 }
 

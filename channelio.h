@@ -1,3 +1,4 @@
+void channelio_init();
 void SETMSG();
 void READST();
 void SETLFS();

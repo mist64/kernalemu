@@ -250,7 +250,7 @@ cbmdos_open(uint8_t lfn, uint8_t unit, uint8_t sec, const char *filename)
 			filename += 2;
 		}
 
-		char *mode = sec ? "w" : "r";
+		char *mode = (sec == 1) ? "w" : "r";
 		char *comma = strchr(filename, ',');
 		if (comma) {
 			*comma = 0;
@@ -321,7 +321,6 @@ cbmdos_chkout(uint8_t lfn, uint8_t unit)
 uint8_t
 cbmdos_basin(uint8_t unit, uint8_t *status)
 {
-//	printf("%s:%d LFN: %d\n", __func__, __LINE__, in_lfn);
 	uint8_t c;
 	if (files[in_lfn] == FILE_COMMAND_CHANNEL) {
 		// command channel
@@ -340,12 +339,14 @@ cbmdos_basin(uint8_t unit, uint8_t *status)
 		c = fgetc(files[in_lfn]);
 		if (feof(files[in_lfn])) {
 			*status = KERN_ST_EOF;
+			c = 0;
 		}
 	} else {
 		// file not open
 		*status = KERN_ST_EOF;
 		return 0;
 	}
+//	printf("%s:%d LFN: %d = '%c' (status=%02x)\n", __func__, __LINE__, in_lfn, c, *status);
 	return c;
 }
 

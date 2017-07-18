@@ -28,7 +28,7 @@ set_z(char f)
 // based on a stack trace.
 __unused static int
 stack4(uint16_t a, uint16_t b, uint16_t c, uint16_t d) {
-#define STACK16(i) (RAM[0x0100+i]|(RAM[0x0100+i+1]<<8))
+#define STACK16(i) (RAM[0x0100 + i]|(RAM[0x0100 + i + 1] << 8))
 	//	printf("stack4: %x,%x,%x,%x\n", a, b, c, d);
 	if (STACK16(sp+1) + 1 != a) return 0;
 	if (STACK16(sp+3) + 1 != b) return 0;
