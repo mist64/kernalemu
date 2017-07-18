@@ -28,6 +28,15 @@ kernal_init()
 	cbmdos_init();
 }
 
+#define NYI() printf("Unsupported KERNAL call %s at PC=$%04X S=$%02X\n", __func__, pc, sp); exit(1);
+
+static void DEFKEY() { NYI(); }
+static void PRINT() { NYI(); }
+static void MONITOR() { NYI(); }
+static void RESET() { NYI(); }
+static void MONITOR_CALL() { NYI(); }
+
+
 // The original KERNAL interface. This is the complete
 // set of calls supported PET machines with BASIC 1/2/3.
 // All CBM machines support these calls.
@@ -54,6 +63,19 @@ kernal_dispatch_pet()
 		case 0xFFE7:	CLALL();	break;
 			// time
 		case 0xFFEA:	UDTIM();	break;
+
+		default:
+			return false;
+	}
+	return true;
+}
+
+static bool
+kernal_dispatch_pet_internal()
+{
+	switch(pc) {
+		case 0xF524:	OPEN();	break;
+//		case 0xF563:	OPEN();	break; // CBM2
 
 		default:
 			return false;
@@ -134,37 +156,6 @@ kernal_dispatch_c64()
 	return true;
 }
 
-// Additions for the C128
-static bool
-kernal_dispatch_c128()
-{
-	switch(pc) {
-		case 0xFF47:	SPIN_SPOUT();	break;
-		case 0xFF4A:	CLOSE_ALL();	break;
-		case 0xFF4D:	C64MODE();	break;
-		case 0xFF50:	DMA_CALL();	break;
-		case 0xFF53:	BOOT_CALL();	break;
-		case 0xFF56:	PHOENIX();	break;
-		case 0xFF59:	LKUPLA();	break;
-		case 0xFF5C:	LKUPSA();	break;
-		case 0xFF5F:	SWAPPER();	break;
-		case 0xFF62:	DLCHR();	break;
-		case 0xFF65:	PFKEY();	break;
-		case 0xFF68:	SETBNK();	break;
-		case 0xFF6B:	GETCFG();	break;
-		case 0xFF6E:	JSRFAR();	break;
-		case 0xFF71:	JMPFAR();	break;
-		case 0xFF74:	INDFET();	break;
-		case 0xFF77:	INDSTA();	break;
-		case 0xFF7A:	INDCMP();	break;
-		case 0xFF7D:	PRIMM();	break;
-
-		default:
-			return false;
-	}
-	return true;
-}
-
 // KERNAL calls only supported on the C64. These are
 // not part of the public KERNAL interface, but addresses
 // that directly point to the implementations. They are
@@ -182,6 +173,107 @@ kernal_dispatch_c64_internal()
 	}
 	return true;
 }
+
+// Additions *only* available on the 264 Series
+static bool
+kernal_dispatch_264_internal()
+{
+	switch(pc) {
+			// "banking jump table"
+		case 0xFCF1:    /* cartridge IRQ routine */ break;
+		case 0xFCF4:    /* PHOENIX routine */ break;
+		case 0xFCF7:    /* LONG FETCH routine */ break;
+		case 0xFCFA:    /* LONG JUMP routine */ break;
+		case 0xFCFD:    /* LONG IRQ routine */ break;
+
+			// "unofficial jump table"
+		case 0xFF49:	DEFKEY();	break;
+		case 0xFF4C:	PRINT();	break;
+		case 0xFF4F:	PRIMM();	break;
+		case 0xFF52:	MONITOR();	break;
+
+		case 0xFFF6:	RESET();	break;
+		default:
+			return false;
+	}
+	return true;
+}
+
+// Additions for the C128
+static bool
+kernal_dispatch_c128()
+{
+	switch(pc) {
+		case 0xFF47:	SPIN_SPOUT();	break;
+		case 0xFF4A:	CLOSE_ALL();	break;
+		case 0xFF4D:	C64MODE();	break;
+		case 0xFF50:	DMA_CALL();	break; // C65: MONITOR_CALL
+		case 0xFF53:	BOOT_CALL();	break;
+		case 0xFF56:	PHOENIX();	break;
+		case 0xFF59:	LKUPLA();	break;
+		case 0xFF5C:	LKUPSA();	break;
+		case 0xFF5F:	SWAPPER();	break;
+		case 0xFF62:	DLCHR();	break; // C65: missing
+		case 0xFF65:	PFKEY();	break;
+		case 0xFF68:	SETBNK();	break;
+		case 0xFF6B:	GETCFG();	break; // C65: missing
+		case 0xFF6E:	JSRFAR();	break;
+		case 0xFF71:	JMPFAR();	break;
+		case 0xFF74:	INDFET();	break;
+		case 0xFF77:	INDSTA();	break;
+		case 0xFF7A:	INDCMP();	break;
+		case 0xFF7D:	PRIMM();	break;
+
+		default:
+			return false;
+	}
+	return true;
+}
+
+// The C65 KERNAL source is based on the C128, but has the
+// following JMPs commented out:
+// * DMA_CALL
+// * DLCHR
+// * GETCFG
+// "JMP DMA_CALL" is replaced with "JMP MONITOR_CALL",
+// but the other two are just removed, so the whole jump
+// table is moved respective to the C128. Only calls 0xFF6E
+// and above are compatible with the C128.
+// Note that the preliminary docmentation says in section 3.4.1
+// "THE FOLLOWING VECTORS AND JUMP TABLES ARE NOT FINAL", so
+// the jump table would probably have been fixed up before
+// release.
+// N.B.: C65 support will need a 65CE02 emulator.
+static bool
+kernal_dispatch_c65_internal()
+{
+	switch(pc) {
+		case 0xFF4D:	SPIN_SPOUT();	break;
+		case 0xFF50:	CLOSE_ALL();	break;
+		case 0xFF53:	C64MODE();	break;
+		case 0xFF56:	MONITOR_CALL();	break;
+		case 0xFF59:	BOOT_CALL();	break;
+		case 0xFF5C:	PHOENIX();	break;
+		case 0xFF5F:	LKUPLA();	break;
+		case 0xFF62:	LKUPSA();	break;
+		case 0xFF65:	SWAPPER();	break;
+			// missing: DLCHR
+		case 0xFF68:	PFKEY();	break;
+		case 0xFF6B:	SETBNK();	break;
+			// missing: GETCFG
+		case 0xFF6E:	JSRFAR();	break;
+		case 0xFF71:	JMPFAR();	break;
+		case 0xFF74:	INDFET();	break;
+		case 0xFF77:	INDSTA();	break;
+		case 0xFF7A:	INDCMP();	break;
+		case 0xFF7D:	PRIMM();	break;
+
+		default:
+			return false;
+	}
+	return true;
+}
+
 
 void
 kernal_dispatch(machine_t machine)
@@ -223,12 +315,21 @@ kernal_dispatch(machine_t machine)
 	//   IPRQST, ALOCAT; these collide with the C128 vectors
 
 	// check private KERNAL calls on the specific machine
+	if (!success && machine == MACHINE_PET) {
+		success = kernal_dispatch_pet_internal();
+	}
 	if (!success && machine == MACHINE_C64) {
 		success = kernal_dispatch_c64_internal();
 	}
+	if (!success && machine == MACHINE_264) {
+		success = kernal_dispatch_264_internal();
+	}
+	if (!success && machine == MACHINE_C65) {
+		success = kernal_dispatch_c65_internal();
+	}
 
 	if (!success) {
-		printf("unknown PC=$%04X S=$%02X\n", pc, sp);
+		printf("unknown PC=$%04X S=$%02X (caller: $%04X)\n", pc, sp, (RAM[0x100 + sp + 1] | (RAM[0x100 + sp + 2] << 8)) + 1);
 		exit(1);
 	}
 

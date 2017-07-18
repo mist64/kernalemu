@@ -9,7 +9,9 @@ typedef enum {
 	MACHINE_PET4,
 	MACHINE_VIC20,
 	MACHINE_C64,
+	MACHINE_264,
 	MACHINE_C128,
+	MACHINE_C65,
 } machine_t;
 
 __unused static void

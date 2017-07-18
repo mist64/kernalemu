@@ -76,8 +76,12 @@ main(int argc, char **argv)
 					machine = MACHINE_VIC20;
 				} else if (!strcmp(argv[i + 1], "c64")) {
 					machine = MACHINE_C64;
+				} else if (!strcmp(argv[i + 1], "264")) {
+					machine = MACHINE_264;
 				} else if (!strcmp(argv[i + 1], "c128")) {
 					machine = MACHINE_C128;
+				} else if (!strcmp(argv[i + 1], "c65")) {
+					machine = MACHINE_C65;
 				} else {
 					printf("%s: Valid values for \"-machine\" are pet, pet4, vic20, c64, c128!\n", argv[0]);
 					exit(1);
@@ -117,6 +121,11 @@ main(int argc, char **argv)
 	}
 
 	kernal_init();
+
+//	RAM[0xFFFC] = 0xD1;
+//	RAM[0xFFFD] = 0xFC;
+//	RAM[0xFFFE] = 0x1B;
+//	RAM[0xFFFF] = 0xE6;
 
 	for (;;) {
 //		printf("pc = %04x; %02x %02x %02x\n", pc, RAM[pc], RAM[pc+1], RAM[pc+2]);

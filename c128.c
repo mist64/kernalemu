@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include "glue.h"
+#include "channelio.h"
 #include "c128.h"
 
 #define NYI() printf("Unsupported KERNAL call %s at PC=$%04X S=$%02X\n", __func__, pc, sp); exit(1);
@@ -64,4 +65,14 @@ void INDSTA() { NYI(); }
 void INDCMP() { NYI(); }
 
 // PRIMM - Print immediate utility
-void PRIMM() { NYI(); }
+void
+PRIMM()
+{
+	uint16_t address = (RAM[0x100 + sp + 1] | (RAM[0x100 + sp + 2] << 8)) + 1;
+	while ((a = RAM[address++])) {
+		BSOUT();
+	}
+	address--;
+	RAM[0x100 + sp + 1] = address & 0xff;
+	RAM[0x100 + sp + 2] = address >> 8;
+}
