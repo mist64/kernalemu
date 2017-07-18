@@ -23,6 +23,7 @@
 #include "screen.h"
 #include "memory.h"
 #include "time.h"
+#include "ieee488.h"
 #include "c128.h"
 
 #define MIN(a,b) (((a)<(b))?(a):(b))
@@ -682,16 +683,7 @@ RESTOR()
 #define NYI() printf("Unsupported KERNAL call %s at PC=$%04X S=$%02X\n", __func__, pc, sp); exit(1);
 
 static void VECTOR() { NYI(); }
-static void SECOND() { NYI(); }
-static void TKSA() { NYI(); }
 static void SCNKEY() { NYI(); }
-static void SETTMO() { NYI(); }
-static void ACPTR() { NYI(); }
-static void CIOUT() { NYI(); }
-static void UNTLK() { NYI(); }
-static void UNLSN() { NYI(); }
-static void LISTEN() { NYI(); }
-static void TALK() { NYI(); }
 static void SCREEN() { NYI(); }
 
 static int

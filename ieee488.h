@@ -1,0 +1,9 @@
+void SECOND();
+void TKSA();
+void SETTMO();
+void ACPTR();
+void CIOUT();
+void UNTLK();
+void UNLSN();
+void LISTEN();
+void TALK();
