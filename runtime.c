@@ -22,6 +22,7 @@
 #include "error.h"
 #include "cbmdos.h"
 #include "screen.h"
+#include "memory.h"
 
 #define MIN(a,b) (((a)<(b))?(a):(b))
 #define MAX(a,b) (((a)>(b))?(a):(b))
@@ -90,7 +91,6 @@ stack4(uint16_t a, uint16_t b, uint16_t c, uint16_t d) {
 #define KERN_DEVICE_DRIVEU15  15
 
 // KERNAL internal state
-uint16_t ram_bot, ram_top;
 uint8_t kernal_msgflag, STATUS = 0;
 uint16_t FNADR;
 uint8_t FNLEN;
@@ -104,7 +104,6 @@ uint8_t file_to_device[] = { 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xF
 int readycount = 0;
 
 static int kernal_dispatch();
-static void RAMTAS();
 
 uint16_t parse_num(char *s)
 {
@@ -202,33 +201,6 @@ SETMSG()
 {
 	kernal_msgflag = a;
 	a = STATUS;
-}
-
-static void
-MEMTOP()
-{
-#if DEBUG // CBMBASIC doesn't do this
-	if (!C) {
-		printf("UNIMPL: set top of RAM");
-		exit(1);
-	}
-#endif
-	x = ram_top & 0xFF;
-	y = ram_top >> 8;
-}
-
-// MEMBOT
-static void
-MEMBOT()
-{
-#if DEBUG // CBMBASIC doesn't do this
-	if (!C) {
-		printf("UNIMPL: set bot of RAM");
-		exit(1);
-	}
-#endif
-	x = ram_bot & 0xFF;
-	y = ram_bot >> 8;
 }
 
 // READST
@@ -874,19 +846,6 @@ static void
 IOINIT()
 {
 	// do nothing
-}
-
-// RAMTAS - Perform RAM test
-static void
-RAMTAS()
-{
-	ram_bot = 0x0800;
-	ram_top = 0xA000;
-
-	// clear zero page
-	memset(RAM, 0, 0x100);
-	// clear 0x200-0x3ff
-	memset(&RAM[0x0200], 0, 0x200);
 }
 
 // RESTOR - Restore default system and interrupt vectors
