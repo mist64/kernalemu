@@ -5,7 +5,6 @@
 #include <stdbool.h>
 #include <stdio.h>
 #include <string.h>
-#include <time.h>
 #ifdef _WIN32
 #include <direct.h>  // getcwd, chdir
 #include <windows.h> // GetLocalTime, SetLocalTime
@@ -23,6 +22,7 @@
 #include "cbmdos.h"
 #include "screen.h"
 #include "memory.h"
+#include "time.h"
 #include "c128.h"
 
 #define MIN(a,b) (((a)<(b))?(a):(b))
@@ -596,65 +596,6 @@ SAVE()
 	}
 }
 
-// SETTIM
-static void
-SETTIM()
-{
-	unsigned long   jiffies = y*65536 + x*256 + a;
-	unsigned long   seconds = jiffies/60;
-#ifdef _WIN32
-	SYSTEMTIME st;
-
-	GetLocalTime(&st);
-	st.wHour         = (WORD)(seconds/3600);
-	st.wMinute       = (WORD)(seconds/60);
-	st.wSecond       = (WORD)(seconds%60);
-	st.wMilliseconds = (WORD)((jiffies % 60) * 1000 / 60);
-	SetLocalTime(&st);
-#else
-	time_t now = time(0);
-	struct tm bd;
-	struct timeval tv;
-
-	localtime_r(&now, &bd);
-
-	bd.tm_sec = seconds % 60;
-	bd.tm_min = seconds / 60;
-	bd.tm_hour = seconds / 3600;
-
-	tv.tv_sec = mktime(&bd);
-	tv.tv_usec = (jiffies % 60) * (1000000 / 60);
-
-	settimeofday(&tv, 0);
-#endif
-}
-
-// RDTIM
-static void
-RDTIM()
-{
-	unsigned long   jiffies;
-#ifdef _WIN32
-	SYSTEMTIME st;
-
-	GetLocalTime(&st);
-	jiffies = ((st.wHour*60 + st.wMinute)*60 + st.wSecond)*60 + st.wMilliseconds * 60 / 1000;
-#else
-	time_t now = time(0);
-	struct tm bd;
-	struct timeval tv;
-
-	localtime_r(&now, &bd);
-	gettimeofday(&tv, 0);
-
-	jiffies = ((bd.tm_hour * 60 + bd.tm_min) * 60 + bd.tm_sec) * 60 + tv.tv_usec / (1000000 / 60);
-#endif
-	y   = (uint8_t)(jiffies / 65536);
-	x   = (uint8_t)((jiffies % 65536) / 256);
-	a   = (uint8_t)(jiffies % 256);
-
-}
-
 // STOP
 static void
 STOP()
@@ -751,7 +692,6 @@ static void UNTLK() { NYI(); }
 static void UNLSN() { NYI(); }
 static void LISTEN() { NYI(); }
 static void TALK() { NYI(); }
-static void UDTIM() { NYI(); }
 static void SCREEN() { NYI(); }
 
 static int
