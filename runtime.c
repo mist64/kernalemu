@@ -72,14 +72,6 @@ stack4(uint16_t a, uint16_t b, uint16_t c, uint16_t d) {
 // http://members.tripod.com/~Frank_Kontros/kernal/addr.htm *
 //***********************************************************
 
-// KERNAL constants
-#if 0
-#define RAM_BOT 0x0400 // we could just as well start at 0x0400, as there is no screen RAM 
-#else
-#define RAM_BOT 0x0800
-#endif
-#define RAM_TOP 0xA000
-
 #define KERN_DEVICE_KEYBOARD  0
 #define KERN_DEVICE_CASSETTE  1
 #define KERN_DEVICE_RS232     2
@@ -98,6 +90,7 @@ stack4(uint16_t a, uint16_t b, uint16_t c, uint16_t d) {
 #define KERN_DEVICE_DRIVEU15  15
 
 // KERNAL internal state
+uint16_t ram_bot, ram_top;
 uint8_t kernal_msgflag, STATUS = 0;
 uint16_t FNADR;
 uint8_t FNLEN;
@@ -110,7 +103,8 @@ uint8_t file_to_device[] = { 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xF
 // shell script hack
 int readycount = 0;
 
-int kernal_dispatch();
+static int kernal_dispatch();
+static void RAMTAS();
 
 uint16_t parse_num(char *s)
 {
@@ -188,6 +182,8 @@ main(int argc, char **argv) {
 
 	srand((unsigned int)time(NULL));
 
+	RAMTAS();
+
 	cbmdos_init();
 
 	for (;;) {
@@ -217,8 +213,8 @@ MEMTOP()
 		exit(1);
 	}
 #endif
-	x = RAM_TOP&0xFF;
-	y = RAM_TOP>>8;
+	x = ram_top & 0xFF;
+	y = ram_top >> 8;
 }
 
 // MEMBOT
@@ -231,8 +227,8 @@ MEMBOT()
 		exit(1);
 	}
 #endif
-	x = RAM_BOT&0xFF;
-	y = RAM_BOT>>8;
+	x = ram_bot & 0xFF;
+	y = ram_bot >> 8;
 }
 
 // READST
@@ -748,7 +744,173 @@ IOBASE()
 	y = CIA >> 8;
 }
 
-int
+#define NYI() printf("Unsupported KERNAL call %s at PC=$%04X S=$%02X\n", __func__, pc, sp); exit(1);
+
+static void
+SPIN_SPOUT()
+{
+	NYI();
+}
+
+static void
+CLOSE_ALL()
+{
+	NYI();
+}
+
+static void
+C64MODE()
+{
+	NYI();
+}
+
+static void
+DMA_CALL()
+{
+	NYI();
+}
+
+static void
+BOOT_CALL()
+{
+	NYI();
+}
+
+static void
+PHOENIX()
+{
+	NYI();
+}
+
+static void
+LKUPLA()
+{
+	NYI();
+}
+
+static void
+LKUPSA()
+{
+	NYI();
+}
+
+static void
+SWAPPER()
+{
+	NYI();
+}
+
+static void
+DLCHR()
+{
+	NYI();
+}
+
+static void
+PFKEY()
+{
+	NYI();
+}
+
+static void
+SETBNK()
+{
+	NYI();
+}
+
+static void
+GETCFG()
+{
+	NYI();
+}
+
+static void
+JSRFAR()
+{
+	NYI();
+}
+
+static void
+JMPFAR()
+{
+	NYI();
+}
+
+static void
+INDFET()
+{
+	NYI();
+}
+
+static void
+INDSTA()
+{
+	NYI();
+}
+
+static void
+INDCMP()
+{
+	NYI();
+}
+
+static void
+PRIMM()
+{
+	NYI();
+}
+
+////
+
+// CINT - Initialize screen editor and devices
+static void
+CINT()
+{
+	// do nothing
+}
+
+// IOINIT - Initialize I/O devices
+static void
+IOINIT()
+{
+	// do nothing
+}
+
+// RAMTAS - Perform RAM test
+static void
+RAMTAS()
+{
+	ram_bot = 0x0800;
+	ram_top = 0xA000;
+
+	// clear zero page
+	memset(RAM, 0, 0x100);
+	// clear 0x200-0x3ff
+	memset(&RAM[0x0200], 0, 0x200);
+}
+
+// RESTOR - Restore default system and interrupt vectors
+static void
+RESTOR()
+{
+	// TODO
+}
+
+static void VECTOR() { NYI(); }
+static void SECOND() { NYI(); }
+static void TKSA() { NYI(); }
+static void SCNKEY() { NYI(); }
+static void SETTMO() { NYI(); }
+static void ACPTR() { NYI(); }
+static void CIOUT() { NYI(); }
+static void UNTLK() { NYI(); }
+static void UNLSN() { NYI(); }
+static void LISTEN() { NYI(); }
+static void TALK() { NYI(); }
+static void UDTIM() { NYI(); }
+static void SCREEN() { NYI(); }
+
+static int
 kernal_dispatch()
 {
 #if 0
@@ -763,14 +925,77 @@ kernal_dispatch()
 #endif
 
 	switch(pc) {
+			// C64 specific
 		case 0xE386:	exit(0);	break;
 		case 0xE716:	/*screen_bsout();*/	break;
+
+// C128 starts here
+
+		case 0xFF47:	SPIN_SPOUT();	break;
+		case 0xFF4A:	CLOSE_ALL();	break;
+		case 0xFF4D:	C64MODE();	break;
+		case 0xFF50:	DMA_CALL();	break;
+		case 0xFF53:	BOOT_CALL();	break;
+		case 0xFF56:	PHOENIX();	break;
+		case 0xFF59:	LKUPLA();	break;
+		case 0xFF5C:	LKUPSA();	break;
+		case 0xFF5F:	SWAPPER();	break;
+		case 0xFF62:	DLCHR();	break;
+		case 0xFF65:	PFKEY();	break;
+		case 0xFF68:	SETBNK();	break;
+		case 0xFF6B:	GETCFG();	break;
+		case 0xFF6E:	JSRFAR();	break;
+		case 0xFF71:	JMPFAR();	break;
+		case 0xFF74:	INDFET();	break;
+		case 0xFF77:	INDSTA();	break;
+		case 0xFF7A:	INDCMP();	break;
+		case 0xFF7D:	PRIMM();	break;
+
+// C64/+4 starts here
+
+			// init
+		case 0xFF81:	CINT();		break;
+		case 0xFF84:	IOINIT();	break;
+		case 0xFF87:	RAMTAS();	break;
+
+// VIC-20 starts here
+
+			// vectors
+		case 0xFF8A:	RESTOR();	break;
+		case 0xFF8D:	VECTOR();	break;
+
+			// verbosity
 		case 0xFF90:	SETMSG();	break;
+
+// PET version 4 starts here
+
+			// IEC
+		case 0xFF93:	SECOND();	break;
+		case 0xFF96:	TKSA();		break;
+
+			// memory
 		case 0xFF99:	MEMTOP();	break;
 		case 0xFF9C:	MEMBOT();	break;
+
+			// keyboard
+		case 0xFF9F:	SCNKEY();	break;
+
+			// IEC
+		case 0xFFA2:	SETTMO();	break;
+		case 0xFFA5:	ACPTR();	break;
+		case 0xFFA8:	CIOUT();	break;
+		case 0xFFAB:	UNTLK();	break;
+		case 0xFFAE:	UNLSN();	break;
+		case 0xFFB1:	LISTEN();	break;
+		case 0xFFB4:	TALK();		break;
+
+			// channel I/O
 		case 0xFFB7:	READST();	break;
 		case 0xFFBA:	SETLFS();	break;
 		case 0xFFBD:	SETNAM();	break;
+
+// PET version 1/2/3 starts here
+
 		case 0xFFC0:	OPEN();		break;
 		case 0xFFC3:	CLOSE();	break;
 		case 0xFFC6:	CHKIN();	break;
@@ -780,17 +1005,39 @@ kernal_dispatch()
 		case 0xFFD2:	BSOUT();	break;
 		case 0xFFD5:	LOAD();		break;
 		case 0xFFD8:	SAVE();		break;
+
+			// time
 		case 0xFFDB:	SETTIM();	break;
 		case 0xFFDE:	RDTIM();	break;
+
+			// keyboard
 		case 0xFFE1:	STOP();		break;
 		case 0xFFE4:	GETIN();	break;
+
+			// channel I/O
 		case 0xFFE7:	CLALL();	break;
+
+			// time
+		case 0xFFEA:	UDTIM();	break;
+
+// PET version 1/2/3/4 ends here
+
+			// screen
+		case 0xFFED:	SCREEN();	break;
 		case 0xFFF0:	PLOT();		break;
+
+			// VIA/CIA
 		case 0xFFF3:	IOBASE();	break;
+
+// VIC-20/C64/+4/C128 ends here
+
+// CBM2:
+// * has vectors $FF90-$FFF3 (so it's compatible with PET 1/2/3/4)
+// * extra vectors $FF6C-$FF8D are incompatible
 
 		default: printf("unknown PC=$%04X S=$%02X\n", pc, sp); exit(1);
 	}
-	pc = (RAM[0x100+sp+1] | (RAM[0x100+sp+2] << 8)) + 1;
+	pc = (RAM[0x100 + sp + 1] | (RAM[0x100 + sp + 2] << 8)) + 1;
 	sp += 2;
 	return 1;
 }
