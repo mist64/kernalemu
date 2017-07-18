@@ -23,6 +23,7 @@
 #include "cbmdos.h"
 #include "screen.h"
 #include "memory.h"
+#include "c128.h"
 
 #define MIN(a,b) (((a)<(b))?(a):(b))
 #define MAX(a,b) (((a)>(b))?(a):(b))
@@ -716,124 +717,6 @@ IOBASE()
 	y = CIA >> 8;
 }
 
-#define NYI() printf("Unsupported KERNAL call %s at PC=$%04X S=$%02X\n", __func__, pc, sp); exit(1);
-
-static void
-SPIN_SPOUT()
-{
-	NYI();
-}
-
-static void
-CLOSE_ALL()
-{
-	NYI();
-}
-
-static void
-C64MODE()
-{
-	NYI();
-}
-
-static void
-DMA_CALL()
-{
-	NYI();
-}
-
-static void
-BOOT_CALL()
-{
-	NYI();
-}
-
-static void
-PHOENIX()
-{
-	NYI();
-}
-
-static void
-LKUPLA()
-{
-	NYI();
-}
-
-static void
-LKUPSA()
-{
-	NYI();
-}
-
-static void
-SWAPPER()
-{
-	NYI();
-}
-
-static void
-DLCHR()
-{
-	NYI();
-}
-
-static void
-PFKEY()
-{
-	NYI();
-}
-
-static void
-SETBNK()
-{
-	NYI();
-}
-
-static void
-GETCFG()
-{
-	NYI();
-}
-
-static void
-JSRFAR()
-{
-	NYI();
-}
-
-static void
-JMPFAR()
-{
-	NYI();
-}
-
-static void
-INDFET()
-{
-	NYI();
-}
-
-static void
-INDSTA()
-{
-	NYI();
-}
-
-static void
-INDCMP()
-{
-	NYI();
-}
-
-static void
-PRIMM()
-{
-	NYI();
-}
-
-////
-
 // CINT - Initialize screen editor and devices
 static void
 CINT()
@@ -854,6 +737,8 @@ RESTOR()
 {
 	// TODO
 }
+
+#define NYI() printf("Unsupported KERNAL call %s at PC=$%04X S=$%02X\n", __func__, pc, sp); exit(1);
 
 static void VECTOR() { NYI(); }
 static void SECOND() { NYI(); }
