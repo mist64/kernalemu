@@ -5,6 +5,24 @@
 
 uint16_t ram_bot, ram_top;
 
+//
+// interface for fake6502
+//
+
+uint8_t RAM[65536];
+
+uint8_t
+read6502(uint16_t address)
+{
+	return RAM[address];
+}
+
+void
+write6502(uint16_t address, uint8_t value)
+{
+	RAM[address] = value;
+}
+
 // RAMTAS - Perform RAM test
 void
 RAMTAS()

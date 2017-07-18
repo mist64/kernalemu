@@ -1,0 +1,2 @@
+void IOBASE();
+void IOINIT();

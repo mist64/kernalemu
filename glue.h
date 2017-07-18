@@ -9,3 +9,9 @@ set_c(char f)
 {
 	status = (status & ~1) | !!f;
 }
+
+__unused static void
+set_z(char f)
+{
+	status = (status & ~2) | (!!f << 1);
+}

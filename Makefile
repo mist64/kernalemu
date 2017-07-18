@@ -9,9 +9,10 @@ all:
 	cc $(CFLAGS) -c time.c
 	cc $(CFLAGS) -c ieee488.c
 	cc $(CFLAGS) -c channelio.c
+	cc $(CFLAGS) -c io.c
 	cc $(CFLAGS) -c c128.c
 	cc $(CFLAGS) -c fake6502.c
-	cc -o kernalemu console.o cbmdos.o screen.o memory.o time.o ieee488.o channelio.o c128.o runtime.o fake6502.o
+	cc -o kernalemu console.o cbmdos.o screen.o memory.o time.o ieee488.o channelio.o io.o c128.o runtime.o fake6502.o
 
 clean:
 	rm *.o

@@ -14,17 +14,14 @@
 #include <unistd.h>
 #endif
 #include "fake6502.h"
-#include "stat.h"
-#include "readdir.h"
 #include "glue.h"
-#include "console.h"
-//#include "error.h"
 #include "cbmdos.h"
 #include "screen.h"
 #include "memory.h"
 #include "time.h"
 #include "ieee488.h"
 #include "channelio.h"
+#include "io.h"
 #include "c128.h"
 
 enum {
@@ -34,30 +31,6 @@ enum {
 	MACHINE_C64,
 	MACHINE_C128,
 } machine;
-
-//
-// interface for fake6502
-//
-
-uint8_t RAM[65536];
-
-uint8_t
-read6502(uint16_t address)
-{
-	return RAM[address];
-}
-
-void
-write6502(uint16_t address, uint8_t value)
-{
-	RAM[address] = value;
-}
-
-void
-set_z(char f)
-{
-	status = (status & ~2) | (!!f << 1);
-}
 
 __unused static int
 stack4(uint16_t a, uint16_t b, uint16_t c, uint16_t d) {
@@ -170,8 +143,7 @@ main(int argc, char **argv) {
 		exit(1);
 	}
 
-	srand((unsigned int)time(NULL));
-
+	IOINIT();
 	RAMTAS();
 
 	cbmdos_init();
@@ -201,33 +173,6 @@ GETIN()
 	BASIN();
 }
 
-// IOBASE
-static void
-IOBASE()
-{
-#define CIA 0xDC00 // we could put this anywhere... 
-	 // IOBASE is just used inside RND to get a timer value.
-	 // So, let's fake this here, too.
-	 // Commodore BASIC reads offsets 4/5 and 6/7 to get the
-	 // two timers of the CIA.
-	int pseudo_timer;
-	pseudo_timer = rand();
-	RAM[CIA+4] = pseudo_timer&0xff;
-	RAM[CIA+5] = pseudo_timer>>8;
-	pseudo_timer = rand(); // more entropy! 
-	RAM[CIA+8] = pseudo_timer&0xff;
-	RAM[CIA+9] = pseudo_timer>>8;
-	x = CIA & 0xFF;
-	y = CIA >> 8;
-}
-
-// IOINIT - Initialize I/O devices
-static void
-IOINIT()
-{
-	// do nothing
-}
-
 // RESTOR - Restore default system and interrupt vectors
 static void
 RESTOR()
@@ -253,19 +198,15 @@ kernal_dispatch_pet()
 		case 0xFFD2:	BSOUT();	break;
 		case 0xFFD5:	LOAD();		break;
 		case 0xFFD8:	SAVE();		break;
-
 			// time
 		case 0xFFDB:	SETTIM();	break;
 		case 0xFFDE:	RDTIM();	break;
-
 			// keyboard
 		case 0xFFE1:	STOP();		break;
 		case 0xFFE4:	GETIN();	break;
-
 			// channel I/O
 		case 0xFFE7:	CLALL();	break;
-			
-			// time
+						// time
 		case 0xFFEA:	UDTIM();	break;
 
 		default:
@@ -281,14 +222,11 @@ kernal_dispatch_pet4()
 			// IEC
 		case 0xFF93:	SECOND();	break;
 		case 0xFF96:	TKSA();		break;
-
 			// memory
 		case 0xFF99:	MEMTOP();	break;
 		case 0xFF9C:	MEMBOT();	break;
-
 			// keyboard
 		case 0xFF9F:	SCNKEY();	break;
-
 			// IEC
 		case 0xFFA2:	SETTMO();	break;
 		case 0xFFA5:	ACPTR();	break;
@@ -297,7 +235,6 @@ kernal_dispatch_pet4()
 		case 0xFFAE:	UNLSN();	break;
 		case 0xFFB1:	LISTEN();	break;
 		case 0xFFB4:	TALK();		break;
-
 			// channel I/O
 		case 0xFFB7:	READST();	break;
 		case 0xFFBA:	SETLFS();	break;
@@ -316,14 +253,11 @@ kernal_dispatch_vic()
 			// vectors
 		case 0xFF8A:	RESTOR();	break;
 		case 0xFF8D:	VECTOR();	break;
-
-			// channel io
+			// channel I/O
 		case 0xFF90:	SETMSG();	break;
-
 			// screen
 		case 0xFFED:	SCREEN();	break;
 		case 0xFFF0:	PLOT();		break;
-
 			// VIA/CIA
 		case 0xFFF3:	IOBASE();	break;
 
@@ -337,9 +271,11 @@ static bool
 kernal_dispatch_c64()
 {
 	switch(pc) {
-			// init
+			// editor init
 		case 0xFF81:	CINT();		break;
+			// I/O init
 		case 0xFF84:	IOINIT();	break;
+			// RAM init
 		case 0xFF87:	RAMTAS();	break;
 
 		default:
@@ -382,7 +318,6 @@ static bool
 kernal_dispatch_c64_internal()
 {
 	switch(pc) {
-			// C64 specific
 		case 0xE386:	exit(0);	break;
 		case 0xE716:	/*screen_bsout();*/	break;
 
