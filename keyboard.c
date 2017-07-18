@@ -15,7 +15,7 @@ SCNKEY()
 	NYI();
 }
 
-// STOP
+// STOP - Scan stop key
 void
 STOP()
 {
@@ -23,7 +23,7 @@ STOP()
 	set_z(0);
 }
 
-// GETIN
+// GETIN - Get a character
 void
 GETIN()
 {

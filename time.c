@@ -8,15 +8,15 @@
 void
 SETTIM()
 {
-	unsigned long   jiffies = y*65536 + x*256 + a;
-	unsigned long   seconds = jiffies/60;
+	unsigned long jiffies = y*65536 + x*256 + a;
+	unsigned long seconds = jiffies/60;
 #ifdef _WIN32
 	SYSTEMTIME st;
 
 	GetLocalTime(&st);
-	st.wHour         = (WORD)(seconds/3600);
-	st.wMinute       = (WORD)(seconds/60);
-	st.wSecond       = (WORD)(seconds%60);
+	st.wHour = (WORD)(seconds/3600);
+	st.wMinute = (WORD)(seconds/60);
+	st.wSecond = (WORD)(seconds%60);
 	st.wMilliseconds = (WORD)((jiffies % 60) * 1000 / 60);
 	SetLocalTime(&st);
 #else
@@ -41,7 +41,7 @@ SETTIM()
 void
 RDTIM()
 {
-	unsigned long   jiffies;
+	unsigned long jiffies;
 #ifdef _WIN32
 	SYSTEMTIME st;
 
@@ -57,10 +57,9 @@ RDTIM()
 
 	jiffies = ((bd.tm_hour * 60 + bd.tm_min) * 60 + bd.tm_sec) * 60 + tv.tv_usec / (1000000 / 60);
 #endif
-	y   = (uint8_t)(jiffies / 65536);
-	x   = (uint8_t)((jiffies % 65536) / 256);
-	a   = (uint8_t)(jiffies % 256);
-	
+	y = (uint8_t)(jiffies / 65536);
+	x = (uint8_t)((jiffies % 65536) / 256);
+	a = (uint8_t)(jiffies % 256);
 }
 
 // UDTIM - Increment real time clock

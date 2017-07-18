@@ -5,7 +5,7 @@
 #include <sys/stat.h>
 
 #ifdef _WIN32
-#define S_ISDIR(m)       (((m) & S_IFMT) == S_IFDIR)
+#define S_ISDIR(m) (((m) & S_IFMT) == S_IFDIR)
 #define stat _stat
 #else
 #include <unistd.h>

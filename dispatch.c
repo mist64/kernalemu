@@ -2,6 +2,7 @@
 #include <stdbool.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <string.h>
 #include "glue.h"
 #include "cbmdos.h"
 #include "screen.h"
@@ -18,11 +19,20 @@
 void
 kernal_init()
 {
+	// make sure KERNAL jump table traps
+	memset(&RAM[0xFF00], 0, 0x100);
+
+	// init I/O
 	IOINIT();
+	// init RAM
 	RAMTAS();
+	// init CBMDOS device
 	cbmdos_init();
 }
 
+// The original KERNAL interface. This is the complete
+// set of calls supported PET machines with BASIC 1/2/3.
+// All CBM machines support these calls.
 static bool
 kernal_dispatch_pet()
 {
@@ -53,11 +63,12 @@ kernal_dispatch_pet()
 	return true;
 }
 
+// Additions for PET machines with BASIC 4
 static bool
 kernal_dispatch_pet4()
 {
 	switch(pc) {
-			// IEC
+			// IEEE-488
 		case 0xFF93:	SECOND();	break;
 		case 0xFF96:	TKSA();		break;
 			// memory
@@ -65,7 +76,7 @@ kernal_dispatch_pet4()
 		case 0xFF9C:	MEMBOT();	break;
 			// keyboard
 		case 0xFF9F:	SCNKEY();	break;
-			// IEC
+			// IEEE-488
 		case 0xFFA2:	SETTMO();	break;
 		case 0xFFA5:	ACPTR();	break;
 		case 0xFFA8:	CIOUT();	break;
@@ -84,6 +95,7 @@ kernal_dispatch_pet4()
 	return true;
 }
 
+// Additions for the VIC-20
 static bool
 kernal_dispatch_vic()
 {
@@ -105,6 +117,8 @@ kernal_dispatch_vic()
 	return true;
 }
 
+// Additions for the C64. The C16/C116/+4 support
+// the same set.
 static bool
 kernal_dispatch_c64()
 {
@@ -122,6 +136,7 @@ kernal_dispatch_c64()
 	return true;
 }
 
+// Additions for the C128
 static bool
 kernal_dispatch_c128()
 {
@@ -152,12 +167,17 @@ kernal_dispatch_c128()
 	return true;
 }
 
+// KERNAL calls only supported on the C64. These are
+// not part of the public KERNAL interface, but addresses
+// that directly point to the implementations. They are
+// not portable between CBM machines, but some applications
+// call them anyway.
 static bool
 kernal_dispatch_c64_internal()
 {
 	switch(pc) {
 		case 0xE386:	exit(0);	break;
-		case 0xE716:	/*screen_bsout();*/	break;
+		case 0xE716:	screen_bsout();	break;
 
 		default:
 			return false;
@@ -193,11 +213,18 @@ kernal_dispatch(machine_t machine)
 	if (!success && machine >= MACHINE_C128) {
 		success = kernal_dispatch_c128();
 	}
-	// CBM2:
-	// * has vectors $FF90-$FFF3 (so it's compatible with PET 1/2/3/4)
-	// * extra vectors $FF6C-$FF8D are incompatible
+	// TODO: CBM2
+	// * supports PET4 set
+	// * supports VIC-20 set, but RESTOR and VECTOR are at
+	//   incompatible addresses!
+	// * supports C64 CINT and IOINIT at incompatible
+	//   addresses
+	// * supports C128 LKUPSA and LKUPLA at incompatible
+	//   addresses
+	// * 6 new calls at $FF6C: TXJMP, VRESET, IPCGO, FUNKEY,
+	//   IPRQST, ALOCAT; these collide with the C128 vectors
 
-	// check private KERNAL calls on the specicif machine
+	// check private KERNAL calls on the specific machine
 	if (!success && machine == MACHINE_C64) {
 		success = kernal_dispatch_c64_internal();
 	}

@@ -17,18 +17,8 @@
 #include "glue.h"
 #include "dispatch.h"
 
-__unused static int
-stack4(uint16_t a, uint16_t b, uint16_t c, uint16_t d) {
-#define STACK16(i) (RAM[0x0100+i]|(RAM[0x0100+i+1]<<8))
-	//	printf("stack4: %x,%x,%x,%x\n", a, b, c, d);
-	if (STACK16(sp+1) + 1 != a) return 0;
-	if (STACK16(sp+3) + 1 != b) return 0;
-	if (STACK16(sp+5) + 1 != c) return 0;
-	if (STACK16(sp+7) + 1 != d) return 0;
-	return 1;
-}
-
-uint16_t parse_num(char *s)
+static uint16_t
+parse_num(char *s)
 {
 	if (s[0] == '$') {
 		s++;
@@ -38,7 +28,8 @@ uint16_t parse_num(char *s)
 	return strtoul(s, NULL, 16);
 }
 int
-main(int argc, char **argv) {
+main(int argc, char **argv)
+{
 	if (argc <= 1) {
 		printf("Usage: %s <filenames> [<arguments>]\n", argv[0]);
 		exit(1);
@@ -107,11 +98,6 @@ main(int argc, char **argv) {
 	if (!has_machine) {
 		machine = MACHINE_C64;
 	}
-
-	//		RAM[0xfffc] = 0xd1;
-	//		RAM[0xfffd] = 0xfc;
-	//		RAM[0xfffe] = 0x1b;
-	//		RAM[0xffff] = 0xe6;
 
 	reset6502();
 	sp = 0xff;

@@ -36,22 +36,23 @@ uint8_t DFLTN = KERN_DEVICE_KEYBOARD;
 
 uint8_t file_to_device[] = { 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF };
 
-// SETMSG
+// SETMSG - Control KERNAL messages
 void
 SETMSG()
 {
+	// TODO: Act on kernal_msgflag
 	kernal_msgflag = a;
 	a = STATUS;
 }
 
-// READST
+// READST - Read I/O status word
 void
 READST()
 {
 	a = STATUS;
 }
 
-// SETLFS
+// SETLFS - Set logical, first, and second addresses
 void
 SETLFS()
 {
@@ -60,7 +61,7 @@ SETLFS()
 	SA = y;
 }
 
-// SETNAM
+// SETNAM - Set file name
 void
 SETNAM()
 {
@@ -68,7 +69,7 @@ SETNAM()
 	FNLEN = a;
 }
 
-// OPEN
+// OPEN - Open a logical file
 void
 OPEN()
 {
@@ -120,7 +121,7 @@ OPEN()
 	//	printf("file_to_device[%d] = %d\n", LA, FA);
 }
 
-// CLOSE
+// CLOSE - Close a specified logical file
 void
 CLOSE()
 {
@@ -158,7 +159,7 @@ CLOSE()
 	file_to_device[a] = 0xFF;
 }
 
-// CHKIN
+// CHKIN - Open channel for input
 void
 CHKIN()
 {
@@ -196,7 +197,7 @@ CHKIN()
 	DFLTN = dev;
 }
 
-// CHKOUT
+// CHKOUT - Open channel for output
 void
 CHKOUT()
 {
@@ -236,7 +237,7 @@ CHKOUT()
 	//	printf("%s:%d DFLTO: %d\n", __func__, __LINE__, DFLTO);
 }
 
-// CLRCHN
+// CLRCHN - Close input and output channels
 void
 CLRCHN()
 {
@@ -244,7 +245,7 @@ CLRCHN()
 	DFLTN = KERN_DEVICE_KEYBOARD;
 }
 
-// BASIN
+// BASIN - Input character from channel
 void
 BASIN()
 {
@@ -280,7 +281,7 @@ BASIN()
 }
 
 
-// BSOUT
+// BSOUT - Output character to channel
 void
 BSOUT()
 {
@@ -327,7 +328,7 @@ BSOUT()
 	//	printf("--- BSOUT: '%c' -> %d @ %x,%x,%x,%x\n", a, DFLTO, a1, a2, a3, a4);
 }
 
-// LOAD
+// LOAD - Load RAM from a device
 void
 LOAD()
 {
@@ -389,7 +390,7 @@ end:
 	//	}
 }
 
-// SAVE
+// SAVE - Save RAM to device
 void
 SAVE()
 {
@@ -436,7 +437,7 @@ SAVE()
 	}
 }
 
-// CLALL
+// CLALL - Close all channels and files
 void
 CLALL()
 {

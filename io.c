@@ -11,15 +11,16 @@ IOBASE()
 #define CIA 0xDC00 // we could put this anywhere...
 	// IOBASE is just used inside RND to get a timer value.
 	// So, let's fake this here, too.
-	// Commodore BASIC reads offsets 4/5 and 6/7 to get the
+	// C64 BASIC V2 reads offsets 4/5 and 6/7 to get the
 	// two timers of the CIA.
+	// TODO: Do the right thing for non-C64
 	int pseudo_timer;
 	pseudo_timer = rand();
-	RAM[CIA+4] = pseudo_timer&0xff;
-	RAM[CIA+5] = pseudo_timer>>8;
+	RAM[CIA + 4] = pseudo_timer & 0xff;
+	RAM[CIA + 5] = pseudo_timer >> 8;
 	pseudo_timer = rand(); // more entropy!
-	RAM[CIA+8] = pseudo_timer&0xff;
-	RAM[CIA+9] = pseudo_timer>>8;
+	RAM[CIA + 8] = pseudo_timer & 0xff;
+	RAM[CIA + 9] = pseudo_timer >> 8;
 	x = CIA & 0xFF;
 	y = CIA >> 8;
 }

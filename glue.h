@@ -23,3 +23,16 @@ set_z(char f)
 {
 	status = (status & ~2) | (!!f << 1);
 }
+
+// This is useful to support different behavior
+// based on a stack trace.
+__unused static int
+stack4(uint16_t a, uint16_t b, uint16_t c, uint16_t d) {
+#define STACK16(i) (RAM[0x0100+i]|(RAM[0x0100+i+1]<<8))
+	//	printf("stack4: %x,%x,%x,%x\n", a, b, c, d);
+	if (STACK16(sp+1) + 1 != a) return 0;
+	if (STACK16(sp+3) + 1 != b) return 0;
+	if (STACK16(sp+5) + 1 != c) return 0;
+	if (STACK16(sp+7) + 1 != d) return 0;
+	return 1;
+}
