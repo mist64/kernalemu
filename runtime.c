@@ -22,6 +22,7 @@
 #include "ieee488.h"
 #include "channelio.h"
 #include "io.h"
+#include "keyboard.h"
 #include "c128.h"
 
 enum {
@@ -159,20 +160,6 @@ main(int argc, char **argv) {
 	return 0;
 }
 
-// STOP
-static void
-STOP()
-{
-	set_z(0); // TODO we don't support the STOP key
-}
-
-// GETIN
-static void
-GETIN()
-{
-	BASIN();
-}
-
 // RESTOR - Restore default system and interrupt vectors
 static void
 RESTOR()
@@ -183,7 +170,6 @@ RESTOR()
 #define NYI() printf("Unsupported KERNAL call %s at PC=$%04X S=$%02X\n", __func__, pc, sp); exit(1);
 
 static void VECTOR() { NYI(); }
-static void SCNKEY() { NYI(); }
 
 static bool
 kernal_dispatch_pet()
@@ -206,7 +192,7 @@ kernal_dispatch_pet()
 		case 0xFFE4:	GETIN();	break;
 			// channel I/O
 		case 0xFFE7:	CLALL();	break;
-						// time
+			// time
 		case 0xFFEA:	UDTIM();	break;
 
 		default:
