@@ -174,22 +174,6 @@ GETIN()
 	BASIN();
 }
 
-// PLOT
-static void
-PLOT()
-{
-	if (status & 1) {
-		int CX, CY;
-		get_cursor(&CX, &CY);
-		y = CX;
-		x = CY;
-	} else {
-		printf("UNIMPL: set cursor %d %d\n", y, x);
-		exit(1);
-	}
-}
-
-
 // IOBASE
 static void
 IOBASE()
@@ -210,13 +194,6 @@ IOBASE()
 	y = CIA >> 8;
 }
 
-// CINT - Initialize screen editor and devices
-static void
-CINT()
-{
-	// do nothing
-}
-
 // IOINIT - Initialize I/O devices
 static void
 IOINIT()
@@ -235,7 +212,6 @@ RESTOR()
 
 static void VECTOR() { NYI(); }
 static void SCNKEY() { NYI(); }
-static void SCREEN() { NYI(); }
 
 static int
 kernal_dispatch()

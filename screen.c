@@ -1,10 +1,42 @@
 #include <stdio.h>
+#include <stdlib.h>
 #include "console.h"
 #include "glue.h"
 
 #define NO_CLRHOME
 
-int kernal_quote = 0;
+static int kernal_quote = 0;
+
+// CINT - Initialize screen editor and devices
+void
+CINT()
+{
+	// do nothing
+}
+
+// SCREEN - Return screen format
+void
+SCREEN()
+{
+	// TODO: return actual values
+	x = 80;
+	y = 25;
+}
+
+// PLOT
+void
+PLOT() // Read/set X,Y cursor position
+{
+	if (status & 1) {
+		int CX, CY;
+		get_cursor(&CX, &CY);
+		y = CX;
+		x = CY;
+	} else {
+		printf("UNIMPL: set cursor %d %d\n", y, x);
+		exit(1);
+	}
+}
 
 void
 screen_bsout()
