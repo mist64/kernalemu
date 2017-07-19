@@ -265,10 +265,11 @@ kernal_dispatch_c128()
 // but the other two are just removed, so the whole jump
 // table is moved respective to the C128. Only calls 0xFF6E
 // and above are compatible with the C128.
-// Note that the preliminary docmentation says in section 3.4.1
-// "THE FOLLOWING VECTORS AND JUMP TABLES ARE NOT FINAL", so
-// the jump table would probably have been fixed up before
-// release.
+// Note that the preliminary docmentation says on page 40:
+// "The following system calls comprise a set of extensions
+// to the standard CBM jump table. They are specifically for
+// the C64DX machine and and as such should not be considered
+// as permanent additions to the standard jump table."
 // N.B.: C65 support will need a 65CE02 emulator.
 static bool
 kernal_dispatch_c65_private()

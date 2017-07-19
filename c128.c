@@ -26,7 +26,11 @@ void DMA_CALL() { NYI(); }
 void BOOT_CALL() { NYI(); }
 
 // PHOENIX - Init function cartridges
-void PHOENIX() { NYI(); }
+void
+PHOENIX()
+{
+	// do nothing
+}
 
 // LKUPLA - Search tables for given LA
 void LKUPLA() { NYI(); }

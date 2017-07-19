@@ -83,7 +83,7 @@ main(int argc, char **argv)
 				} else if (!strcmp(argv[i + 1], "c65")) {
 					machine = MACHINE_C65;
 				} else {
-					printf("%s: Valid values for \"-machine\" are pet, pet4, vic20, c64, c128!\n", argv[0]);
+					printf("%s: Valid values for \"-machine\" are pet, pet4, vic20, c64, 264, c128, c65!\n", argv[0]);
 					exit(1);
 				}
 				has_machine = true;
