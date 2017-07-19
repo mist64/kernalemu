@@ -1,2 +1,2 @@
 void kernal_init();
-void kernal_dispatch(machine_t machine);
+bool kernal_dispatch(machine_t machine);

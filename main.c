@@ -128,11 +128,15 @@ main(int argc, char **argv)
 //	RAM[0xFFFF] = 0xE6;
 
 	for (;;) {
-//		printf("pc = %04x; %02x %02x %02x\n", pc, RAM[pc], RAM[pc+1], RAM[pc+2]);
-		step6502();
-		if (!RAM[pc]) {
-			kernal_dispatch(machine);
+//		printf("pc = %04x; %02x %02x %02x, sp=%02x [%02x, %02x, %02x, %02x, %02x]\n", pc, RAM[pc], RAM[pc+1], RAM[pc+2], sp, RAM[0x100 + sp + 1], RAM[0x100 + sp + 2], RAM[0x100 + sp + 3], RAM[0x100 + sp + 4], RAM[0x100 + sp + 5]);
+		while (!RAM[pc]) {
+			bool success = kernal_dispatch(machine);
+			if (!success) {
+				printf("unknown PC=$%04X S=$%02X (caller: $%04X)\n", pc, sp, (RAM[0x100 + sp + 1] | (RAM[0x100 + sp + 2] << 8)) + 1);
+				exit(1);
+			}
 		}
+		step6502();
 	}
 
 	return 0;

@@ -12,7 +12,7 @@ void
 SCNKEY()
 {
 	// This should only be called by custom interrupt handlers.
-	NYI();
+	// do nothing
 }
 
 // STOP - Scan stop key

@@ -94,7 +94,7 @@ OPEN()
 	uint8_t len = MIN(FNLEN, sizeof(filename) - 1);
 	memcpy(filename, (char *)&RAM[FNADR], FNLEN);
 	filename[len] = 0;
-		printf("OPEN %d,%d,%d,\"%s\"\n", LA, FA, SA, filename);
+//		printf("OPEN %d,%d,%d,\"%s\"\n", LA, FA, SA, filename);
 
 	switch (FA) {
 		case KERN_DEVICE_KEYBOARD:
@@ -174,7 +174,7 @@ void
 CHKIN()
 {
 	uint8_t dev = file_to_device[x];
-		printf("CHKIN %d (dev %d)\n", x, dev);
+//		printf("CHKIN %d (dev %d)\n", x, dev);
 	if (dev == 0xFF) {
 		set_c(1);
 		a = KERN_ERR_FILE_NOT_OPEN;

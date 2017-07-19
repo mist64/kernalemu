@@ -182,6 +182,21 @@ kernal_dispatch_c64()
 	return true;
 }
 
+static bool
+kernal_dispatch_vic20_private()
+{
+	switch(pc) {
+		case 0xFD8D:	RAMTAS();	break;
+		case 0xFDF9:	IOINIT();	break;
+		case 0xE518:	/* video reset */	break;
+
+		default:
+			return false;
+	}
+	return true;
+}
+
+
 // KERNAL calls only supported on the C64. These are
 // not part of the public KERNAL interface, but addresses
 // that directly point to the implementations. They are
@@ -191,6 +206,7 @@ static bool
 kernal_dispatch_c64_private()
 {
 	switch(pc) {
+		case 0xE37B:	exit(0);	break;
 		case 0xE386:	exit(0);	break;
 		case 0xE716:	screen_bsout();	break;
 
@@ -301,8 +317,7 @@ kernal_dispatch_c65_private()
 	return true;
 }
 
-
-void
+bool
 kernal_dispatch(machine_t machine)
 {
 #if 0
@@ -345,6 +360,9 @@ kernal_dispatch(machine_t machine)
 	if (!success && machine == MACHINE_PET) {
 		success = kernal_dispatch_pet_private();
 	}
+	if (!success && machine == MACHINE_VIC20) {
+		success = kernal_dispatch_vic20_private();
+	}
 	if (!success && machine == MACHINE_C64) {
 		success = kernal_dispatch_c64_private();
 	}
@@ -355,12 +373,28 @@ kernal_dispatch(machine_t machine)
 		success = kernal_dispatch_c65_private();
 	}
 
-	if (!success) {
-		printf("unknown PC=$%04X S=$%02X (caller: $%04X)\n", pc, sp, (RAM[0x100 + sp + 1] | (RAM[0x100 + sp + 2] << 8)) + 1);
-		exit(1);
+	// VIC-20 and above have a BRK vector
+	if (!success && machine >= MACHINE_VIC20) {
+		uint16_t vector = 0x0316;
+		uint16_t brk = RAM[vector] | (RAM[vector + 1] << 8);
+
+		if (brk) {
+			// the CPU does this
+			RAM[0x100 + sp--] = (pc + 1) >> 8;
+			RAM[0x100 + sp--] = (pc + 1) & 0xff;
+			RAM[0x100 + sp--] = status | 0x20;
+			pc = brk;
+			// KERNAL does this
+			RAM[0x100 + sp--] = a;
+			RAM[0x100 + sp--] = x;
+			RAM[0x100 + sp--] = y;
+			return true;
+		}
 	}
 
 	pc = (RAM[0x100 + sp + 1] | (RAM[0x100 + sp + 2] << 8)) + 1;
 	sp += 2;
+
+	return success;
 }
 
