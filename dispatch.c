@@ -30,12 +30,22 @@ kernal_init()
 
 #define NYI() printf("Unsupported KERNAL call %s at PC=$%04X S=$%02X\n", __func__, pc, sp); exit(1);
 
+// PET BASIC commands
+static void BASIC_OPEN() { NYI(); }
+static void BASIC_CLOSE() { NYI(); }
+static void BASIC_LOAD() { NYI(); }
+static void BASIC_SAVE() { NYI(); }
+static void BASIC_VERIFY() { NYI(); }
+static void BASIC_SYS() { NYI(); }
+
+// 264 private
 static void DEFKEY() { NYI(); }
 static void PRINT() { NYI(); }
 static void MONITOR() { NYI(); }
 static void RESET() { NYI(); }
-static void MONITOR_CALL() { NYI(); }
 
+// C65
+static void MONITOR_CALL() { NYI(); }
 
 // The original KERNAL interface. This is the complete
 // set of calls supported PET machines with BASIC 1/2/3.
@@ -44,18 +54,12 @@ static bool
 kernal_dispatch_pet()
 {
 	switch(pc) {
-		case 0xFFC0:	OPEN();		break;
-		case 0xFFC3:	CLOSE();	break;
+			// channel I/O
 		case 0xFFC6:	CHKIN();	break;
 		case 0xFFC9:	CHKOUT();	break;
 		case 0xFFCC:	CLRCHN();	break;
 		case 0xFFCF:	BASIN();	break;
 		case 0xFFD2:	BSOUT();	break;
-		case 0xFFD5:	LOAD();		break;
-		case 0xFFD8:	SAVE();		break;
-			// time
-		case 0xFFDB:	SETTIM();	break;
-		case 0xFFDE:	RDTIM();	break;
 			// keyboard
 		case 0xFFE1:	STOP();		break;
 		case 0xFFE4:	GETIN();	break;
@@ -71,11 +75,21 @@ kernal_dispatch_pet()
 }
 
 static bool
-kernal_dispatch_pet_internal()
+kernal_dispatch_pet_private()
 {
 	switch(pc) {
 		case 0xF524:	OPEN();	break;
 //		case 0xF563:	OPEN();	break; // CBM2
+
+			// BASIC commands
+			// These were API on the PET, but they
+			// were replaced on the VIC-20.
+		case 0xFFC0:	BASIC_OPEN();	break;
+		case 0xFFC3:	BASIC_CLOSE();	break;
+		case 0xFFD5:	BASIC_LOAD();	break;
+		case 0xFFD8:	BASIC_SAVE();	break;
+		case 0xFFDB:	BASIC_VERIFY();	break;
+		case 0xFFDE:	BASIC_SYS();	break;
 
 		default:
 			return false;
@@ -125,6 +139,18 @@ kernal_dispatch_vic()
 		case 0xFF8D:	VECTOR();	break;
 			// channel I/O
 		case 0xFF90:	SETMSG();	break;
+			// channel I/O
+			// (these replace the respective PET BASIC
+			// commands)
+		case 0xFFC0:	OPEN();		break;
+		case 0xFFC3:	CLOSE();	break;
+		case 0xFFD5:	LOAD();		break;
+		case 0xFFD8:	SAVE();		break;
+			// time
+			// (these replace the PET BASIC commands
+			// VERIFY and SYS)
+		case 0xFFDB:	SETTIM();	break;
+		case 0xFFDE:	RDTIM();	break;
 			// screen
 		case 0xFFED:	SCREEN();	break;
 		case 0xFFF0:	PLOT();		break;
@@ -162,7 +188,7 @@ kernal_dispatch_c64()
 // not portable between CBM machines, but some applications
 // call them anyway.
 static bool
-kernal_dispatch_c64_internal()
+kernal_dispatch_c64_private()
 {
 	switch(pc) {
 		case 0xE386:	exit(0);	break;
@@ -176,7 +202,7 @@ kernal_dispatch_c64_internal()
 
 // Additions *only* available on the 264 Series
 static bool
-kernal_dispatch_264_internal()
+kernal_dispatch_264_private()
 {
 	switch(pc) {
 			// "banking jump table"
@@ -245,7 +271,7 @@ kernal_dispatch_c128()
 // release.
 // N.B.: C65 support will need a 65CE02 emulator.
 static bool
-kernal_dispatch_c65_internal()
+kernal_dispatch_c65_private()
 {
 	switch(pc) {
 		case 0xFF4D:	SPIN_SPOUT();	break;
@@ -316,16 +342,16 @@ kernal_dispatch(machine_t machine)
 
 	// check private KERNAL calls on the specific machine
 	if (!success && machine == MACHINE_PET) {
-		success = kernal_dispatch_pet_internal();
+		success = kernal_dispatch_pet_private();
 	}
 	if (!success && machine == MACHINE_C64) {
-		success = kernal_dispatch_c64_internal();
+		success = kernal_dispatch_c64_private();
 	}
 	if (!success && machine == MACHINE_264) {
-		success = kernal_dispatch_264_internal();
+		success = kernal_dispatch_264_private();
 	}
 	if (!success && machine == MACHINE_C65) {
-		success = kernal_dispatch_c65_internal();
+		success = kernal_dispatch_c65_private();
 	}
 
 	if (!success) {
