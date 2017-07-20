@@ -1,11 +1,13 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdbool.h>
 #include "console.h"
 #include "glue.h"
 
-#define NO_CLRHOME
+//#define NO_CLRHOME
 
-static int kernal_quote = 0;
+static int quote_mode = 0;
+static bool text_mode = false;
 
 // CINT - Initialize screen editor and devices
 void
@@ -41,9 +43,9 @@ PLOT() // Read/set X,Y cursor position
 void
 screen_bsout()
 {
-	if (kernal_quote) {
+	if (quote_mode) {
 		if (a == '"' || a == '\n' || a == '\r') {
-			kernal_quote = 0;
+			quote_mode = 0;
 		}
 		putchar(a);
 	} else {
@@ -57,16 +59,19 @@ screen_bsout()
 				putchar(13);
 				putchar(10);
 				break;
-			case 17: /* CSR DOWN */
+			case 14: // TEXT
+				text_mode = true;
+				break;
+			case 17: // CSR DOWN
 				down_cursor();
 				break;
-			case 19: /* CSR HOME */
+			case 19: // CSR HOME
 				move_cursor(0, 0);
 				break;
 			case 28:
 				set_color(COLOR_RED);
 				break;
-			case 29: /* CSR RIGHT */
+			case 29: // CSR RIGHT
 				right_cursor();
 				break;
 			case 30:
@@ -78,13 +83,16 @@ screen_bsout()
 			case 129:
 				set_color(COLOR_ORANGE);
 				break;
+			case 142: // GRAPHICS
+				text_mode = false;
+				break;
 			case 144:
 				set_color(COLOR_BLACK);
 				break;
-			case 145: /* CSR UP */
+			case 145: // CSR UP
 				up_cursor();
 				break;
-			case 147: /* clear screen */
+			case 147: // clear screen
 #ifndef NO_CLRHOME
 				clear_screen();
 #endif
@@ -119,14 +127,25 @@ screen_bsout()
 			case 159:
 				set_color(COLOR_CYAN);
 				break;
-			case 157: /* CSR LEFT */
+			case 157: // CSR LEFT
 				left_cursor();
 				break;
 			case '"':
-				kernal_quote = 1;
+				quote_mode = 1;
 				// fallthrough
-			default:
-				putchar(a);
+			default: {
+				unsigned char c = a;
+				if (text_mode) {
+					if (c >= 0x41 && c <= 0x5a) {
+						c += 0x20;
+					} else if (c >= 0x61 && c <= 0x7a) {
+						c -= 0x20;
+					} else if (c >= 0xc1 && c <= 0xda) {
+						c -= 0x80;
+					}
+				}
+				putchar(c);
+			}
 		}
 	}
 	fflush(stdout);

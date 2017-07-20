@@ -16,6 +16,7 @@
 #include "fake6502.h"
 #include "glue.h"
 #include "dispatch.h"
+#include "screen.h"
 
 static uint16_t
 parse_num(char *s)
@@ -46,6 +47,7 @@ main(int argc, char **argv)
 	uint16_t start_address_indirect;
 	bool has_machine;
 	machine_t machine;
+	bool charset_text = false;
 
 	for (int i = 1; i < argc; i++) {
 		if (argv[i][0] == '-') {
@@ -87,6 +89,10 @@ main(int argc, char **argv)
 					exit(1);
 				}
 				has_machine = true;
+			} else if (!strcmp(argv[i], "-text")) {
+				charset_text = true;
+			} else if (!strcmp(argv[i], "-graphics")) {
+				charset_text = false;
 			}
 			i++;
 		} else {
@@ -122,6 +128,11 @@ main(int argc, char **argv)
 
 	kernal_init();
 
+	if (charset_text) {
+		a = 14;
+		screen_bsout();
+	}
+
 //	RAM[0xFFFC] = 0xD1;
 //	RAM[0xFFFD] = 0xFC;
 //	RAM[0xFFFE] = 0x1B;
@@ -132,7 +143,7 @@ main(int argc, char **argv)
 		while (!RAM[pc]) {
 			bool success = kernal_dispatch(machine);
 			if (!success) {
-				printf("unknown PC=$%04X S=$%02X (caller: $%04X)\n", pc, sp, (RAM[0x100 + sp + 1] | (RAM[0x100 + sp + 2] << 8)) + 1);
+				printf("\nunknown PC=$%04X S=$%02X (caller: $%04X)\n", pc, sp, (RAM[0x100 + sp + 1] | (RAM[0x100 + sp + 2] << 8)) + 1);
 				exit(1);
 			}
 		}

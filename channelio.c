@@ -100,18 +100,13 @@ OPEN()
 		case KERN_DEVICE_KEYBOARD:
 		case KERN_DEVICE_CASSETTE:
 		case KERN_DEVICE_RS232:
-			set_c(1);
-			a = KERN_ERR_DEVICE_NOT_PRESENT;
-			return;
 		case KERN_DEVICE_SCREEN:
-			break;
 		case KERN_DEVICE_PRINTERU4:
 		case KERN_DEVICE_PRINTERU5:
 		case KERN_DEVICE_PRINTERU6:
 		case KERN_DEVICE_PRINTERU7:
-			set_c(1);
-			a = KERN_ERR_DEVICE_NOT_PRESENT;
-			return;
+			a = KERN_ERR_NONE;
+			break;
 		case KERN_DEVICE_DRIVEU8:
 		case KERN_DEVICE_DRIVEU9:
 		case KERN_DEVICE_DRIVEU10:
@@ -121,7 +116,6 @@ OPEN()
 		case KERN_DEVICE_DRIVEU14:
 		case KERN_DEVICE_DRIVEU15:
 			a = cbmdos_open(LA, FA, SA, filename);
-			set_c(a != KERN_ERR_NONE);
 			break;
 	}
 
@@ -129,6 +123,7 @@ OPEN()
 		file_to_device[LA] = FA;
 	}
 	//	printf("file_to_device[%d] = %d\n", LA, FA);
+	set_c(a != KERN_ERR_NONE);
 }
 
 // CLOSE - Close a specified logical file
@@ -176,6 +171,7 @@ CHKIN()
 	uint8_t dev = file_to_device[x];
 //		printf("CHKIN %d (dev %d)\n", x, dev);
 	if (dev == 0xFF) {
+		DFLTN = KERN_DEVICE_KEYBOARD;
 		set_c(1);
 		a = KERN_ERR_FILE_NOT_OPEN;
 		return;
@@ -214,6 +210,7 @@ CHKOUT()
 	//	printf("CHKOUT %d\n", x);
 	uint8_t dev = file_to_device[x];
 	if (dev == 0xFF) {
+		DFLTO = KERN_DEVICE_SCREEN;
 		set_c(1);
 		a = KERN_ERR_FILE_NOT_OPEN;
 		return;

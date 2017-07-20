@@ -322,7 +322,7 @@ kernal_dispatch(machine_t machine)
 {
 #if 0
 	if (pc != 0xffd2) {
-		printf("kernal_dispatch $%04X; ", pc);
+		printf("\nkernal_dispatch $%04X; ", pc);
 		printf("stack (%02X): ", sp);
 		for (int i = sp + 1; i < 0x100; i++) {
 			printf("%02X ", RAM[0x0100 + i]);
