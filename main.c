@@ -48,6 +48,7 @@ main(int argc, char **argv)
 	bool has_machine;
 	machine_t machine;
 	bool charset_text = false;
+	uint8_t columns = 0;
 
 	for (int i = 1; i < argc; i++) {
 		if (argv[i][0] == '-') {
@@ -93,6 +94,12 @@ main(int argc, char **argv)
 				charset_text = true;
 			} else if (!strcmp(argv[i], "-graphics")) {
 				charset_text = false;
+			} else if (!strcmp(argv[i], "-columns")) {
+				if (i == argc - 1) {
+					printf("%s: -columns requires argument!\n", argv[0]);
+					exit(1);
+				}
+				columns = parse_num(argv[i + 1 ]);
 			}
 			i++;
 		} else {
@@ -127,11 +134,7 @@ main(int argc, char **argv)
 	}
 
 	kernal_init();
-
-	if (charset_text) {
-		a = 14;
-		screen_bsout();
-	}
+	screen_init(columns, charset_text);
 
 //	RAM[0xFFFC] = 0xD1;
 //	RAM[0xFFFD] = 0xFC;

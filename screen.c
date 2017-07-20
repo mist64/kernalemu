@@ -6,8 +6,17 @@
 
 //#define NO_CLRHOME
 
-static int quote_mode = 0;
+static uint8_t columns;
+static uint8_t column = 0;
 static bool text_mode = false;
+static int quote_mode = 0;
+
+void
+screen_init(uint8_t c, bool t)
+{
+	columns = c;
+	text_mode = t;
+}
 
 // CINT - Initialize screen editor and devices
 void
@@ -58,6 +67,7 @@ screen_bsout()
 			case 13:
 				putchar(13);
 				putchar(10);
+				column = 0;
 				break;
 			case 14: // TEXT
 				text_mode = true;
@@ -134,6 +144,7 @@ screen_bsout()
 				quote_mode = 1;
 				// fallthrough
 			default: {
+//				printf("<%i(%i)>", a, column);
 				unsigned char c = a;
 				if (text_mode) {
 					if (c >= 0x41 && c <= 0x5a) {
@@ -145,6 +156,17 @@ screen_bsout()
 					}
 				}
 				putchar(c);
+				if (c == '\b') {
+					if (column) {
+						column--;
+					}
+				} else {
+					column++;
+					if (column == columns) {
+						putchar('\n');
+						column = 0;
+					}
+				}
 			}
 		}
 	}
