@@ -39,8 +39,6 @@ main(int argc, char **argv)
 		exit(1);
 	}
 
-	bool has_load_address = false;
-	uint16_t load_address;
 	bool has_start_address = false;
 	uint16_t start_address;
 	bool has_start_address_indirect = false;
@@ -108,10 +106,49 @@ main(int argc, char **argv)
 				printf("Error opening: %s\n", argv[i]);
 				exit(1);
 			}
-			load_address = fgetc(binary) | fgetc(binary) << 8;
+			uint16_t load_address = fgetc(binary) | fgetc(binary) << 8;
 			fread(&RAM[load_address], 65536 - load_address, 1, binary);
 			fclose(binary);
-			has_load_address = true;
+			bool has_basic_start = false;
+			switch (load_address) {
+				case 0x401:  // PET
+					if (!has_machine) {
+						machine = MACHINE_PET4;
+					}
+					has_basic_start = true;
+					break;
+				case 0x801:  // C64
+					if (!has_machine) {
+						machine = MACHINE_C64;
+					}
+					has_basic_start = true;
+					break;
+				case 0x1001: // 264
+					if (!has_machine) {
+						machine = MACHINE_264;
+					}
+					has_basic_start = true;
+					break;
+				case 0x1C01: // C128
+					if (!has_machine) {
+						machine = MACHINE_C128;
+					}
+					has_basic_start = true;
+					break;
+			}
+			if (!has_start_address) {
+				if (has_basic_start && RAM[load_address + 4] == 0x9e /* SYS */) {
+					char *sys_arg = (char *)&RAM[load_address + 5];
+					if (*sys_arg == '(') {
+						sys_arg++;
+					}
+					start_address = parse_num(sys_arg);
+					has_start_address = true;
+				} else {
+					start_address = load_address;
+					has_start_address = true;
+				}
+			}
 		}
 	}
 
@@ -126,8 +163,6 @@ main(int argc, char **argv)
 		pc = start_address;
 	} else if (has_start_address_indirect) {
 		pc = RAM[start_address_indirect] | (RAM[start_address_indirect + 1] << 8);
-	} else if (has_load_address) {
-		pc = load_address;
 	} else {
 		printf("%s: You need to specify at least one binary file!\n", argv[0]);
 		exit(1);
