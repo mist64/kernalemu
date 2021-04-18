@@ -14,13 +14,13 @@ typedef enum {
 	MACHINE_C65,
 } machine_t;
 
-__unused static void
+__attribute__((unused)) static void
 set_c(char f)
 {
 	status = (status & ~1) | !!f;
 }
 
-__unused static void
+__attribute__((unused)) static void
 set_z(char f)
 {
 	status = (status & ~2) | (!!f << 1);
@@ -28,7 +28,7 @@ set_z(char f)
 
 // This is useful to support different behavior
 // based on a stack trace.
-__unused static int
+__attribute__((unused)) static int
 stack4(uint16_t a, uint16_t b, uint16_t c, uint16_t d) {
 #define STACK16(i) (RAM[0x0100 + i]|(RAM[0x0100 + i + 1] << 8))
 	//	printf("stack4: %x,%x,%x,%x\n", a, b, c, d);
