@@ -97,15 +97,17 @@ OPEN()
 //		printf("OPEN %d,%d,%d,\"%s\"\n", LA, FA, SA, filename);
 
 	switch (FA) {
+		case KERN_DEVICE_SCREEN:
 		case KERN_DEVICE_KEYBOARD:
+			a = KERN_ERR_NONE;
+			break;
 		case KERN_DEVICE_CASSETTE:
 		case KERN_DEVICE_RS232:
-		case KERN_DEVICE_SCREEN:
 		case KERN_DEVICE_PRINTERU4:
 		case KERN_DEVICE_PRINTERU5:
 		case KERN_DEVICE_PRINTERU6:
 		case KERN_DEVICE_PRINTERU7:
-			a = KERN_ERR_NONE;
+			a = KERN_ERR_DEVICE_NOT_PRESENT;
 			break;
 		case KERN_DEVICE_DRIVEU8:
 		case KERN_DEVICE_DRIVEU9:
