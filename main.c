@@ -77,14 +77,14 @@ main(int argc, char **argv)
 					machine = MACHINE_VIC20;
 				} else if (!strcmp(argv[i + 1], "c64")) {
 					machine = MACHINE_C64;
-				} else if (!strcmp(argv[i + 1], "264")) {
-					machine = MACHINE_264;
+				} else if (!strcmp(argv[i + 1], "ted")) {
+					machine = MACHINE_TED;
 				} else if (!strcmp(argv[i + 1], "c128")) {
 					machine = MACHINE_C128;
 				} else if (!strcmp(argv[i + 1], "c65")) {
 					machine = MACHINE_C65;
 				} else {
-					printf("%s: Valid values for \"-machine\" are pet, pet4, vic20, c64, 264, c128, c65!\n", argv[0]);
+					printf("%s: Valid values for \"-machine\" are pet, pet4, vic20, c64, ted, c128, c65!\n", argv[0]);
 					exit(1);
 				}
 				has_machine = true;
@@ -123,9 +123,9 @@ main(int argc, char **argv)
 					}
 					has_basic_start = true;
 					break;
-				case 0x1001: // 264
+				case 0x1001: // TED
 					if (!has_machine) {
-						machine = MACHINE_264;
+						machine = MACHINE_TED;
 					}
 					has_basic_start = true;
 					break;
@@ -159,10 +159,10 @@ main(int argc, char **argv)
 	reset6502();
 	sp = 0xff;
 
-	if (has_start_address) {
-		pc = start_address;
-	} else if (has_start_address_indirect) {
+	if (has_start_address_indirect) {
 		pc = RAM[start_address_indirect] | (RAM[start_address_indirect + 1] << 8);
+	} else if (has_start_address) {
+		pc = start_address;
 	} else {
 		printf("%s: You need to specify at least one binary file!\n", argv[0]);
 		exit(1);

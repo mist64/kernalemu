@@ -38,7 +38,7 @@ static void BASIC_SAVE() { NYI(); }
 static void BASIC_VERIFY() { NYI(); }
 static void BASIC_SYS() { NYI(); }
 
-// 264 private
+// TED private
 static void DEFKEY() { NYI(); }
 static void PRINT() { NYI(); }
 static void MONITOR() { NYI(); }
@@ -216,9 +216,9 @@ kernal_dispatch_c64_private()
 	return true;
 }
 
-// Additions *only* available on the 264 Series
+// Additions *only* available on the TED Series
 static bool
-kernal_dispatch_264_private()
+kernal_dispatch_ted_private()
 {
 	switch(pc) {
 			// "banking jump table"
@@ -366,8 +366,8 @@ kernal_dispatch(machine_t machine)
 	if (!success && machine == MACHINE_C64) {
 		success = kernal_dispatch_c64_private();
 	}
-	if (!success && machine == MACHINE_264) {
-		success = kernal_dispatch_264_private();
+	if (!success && machine == MACHINE_TED) {
+		success = kernal_dispatch_ted_private();
 	}
 	if (!success && machine == MACHINE_C65) {
 		success = kernal_dispatch_c65_private();
