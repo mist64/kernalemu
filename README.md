@@ -2,6 +2,16 @@
 
 **kernalemu** is a C reimplementation of the Commodore KERNAL API, combined with a 6502 emulator. It allows runnung cleanly written PET/C64/C128 etc. command line applications on the UNIX command line, like BASIC interpreters, assemblers, monitors and text adventures.
 
+## Features
+
+* Channel I/O API
+	* Devices 0 (keyboard) and 3 (keyboard) map UNIX stdin and stdout.
+	* Devices 4-7 writes the printer output to files `printer4.txt` etc. on disk.
+	* Devices 8-15 goes through a basic Commodore DOS layer that maps to the UNIX filesystem. Reading and writing files, sending certain disk commands and loading the directory (`"$"`) is supported.
+	* Devices 1 (tape) and 2 (tape or RS-232) are not supported.
+* Time API: bridged to system time
+* IEEE-488 API: not yet supported
+
 ## Usage
 
     kernalemu [options] file...
@@ -108,9 +118,19 @@ There are several applications in the `demo` subdirectory. Here is how to run th
 	
 	OBJECT FILE (CR OR D:NAME): 
 
-This is the assembler Commodore used to build their ROMs. It will successfully build e.g. [the C64 KERNAL source](https://www.pagetable.com/?p=894) if you extract the files from the disk image and pass "kernal" as the source file name:
+This is the assembler Commodore used to build their ROMs. It will successfully build e.g. [the C64 KERNAL source](https://www.pagetable.com/?p=894) if you extract the files from the disk image and pass `kernal` as the source file name:
 
-	echo "\r\r\rkernal" | kernalemu assembler64.prg
+	echo "kernal.hex\r\r\rkernal" | kernalemu assembler64.prg
+
+This will create `kernal.hex` with the hex output. You can convert it to binary using:
+
+	tr '\r' '\n' < kernal.hex > kernal_lf.hex
+	srec_cat kernal_lf.hex -MOS_Technologies \
+	    -offset -0xe000 \
+	    -fill 0xaa 0x0000 0x1fff \
+	    -o kernal.bin -Binary
+
+The assembler sends the LST output to the printer, which you can find in the file `printer4.txt`:
 
 	[...]
 	01727  EE13              ;INPUT A BYTE FROM SERIAL BUS
@@ -190,4 +210,4 @@ This is the assembler Commodore used to build their ROMs. It will successfully b
 
 ## Credits
 
-This repository is maintained by Michael Steil, <mist64@mac.com>
+This repository is maintained by Michael Steil, <mist64@mac.com>, [www.pagetable.com](http://www.pagetable.com/)
