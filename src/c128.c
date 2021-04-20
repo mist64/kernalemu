@@ -7,7 +7,7 @@
 
 #define NYI() printf("Unsupported KERNAL call %s at PC=$%04X S=$%02X\n", __func__, pc, sp); exit(1);
 
-// The C128 KERNAL interface additions are currently
+// Most of the C128 KERNAL interface additions are currently
 // unsupported.
 
 // SPIN_SPOUT - Setup fast serial ports for I/O

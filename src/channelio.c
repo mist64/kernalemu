@@ -5,6 +5,7 @@
 #include "error.h"
 #include "cbmdos.h"
 #include "screen.h"
+#include "printer.h"
 #include "channelio.h"
 
 #define MIN(a,b) (((a)<(b))?(a):(b))
@@ -94,7 +95,7 @@ OPEN()
 	uint8_t len = MIN(FNLEN, sizeof(filename) - 1);
 	memcpy(filename, (char *)&RAM[FNADR], FNLEN);
 	filename[len] = 0;
-//		printf("OPEN %d,%d,%d,\"%s\"\n", LA, FA, SA, filename);
+//	printf("OPEN %d,%d,%d,\"%s\"\n", LA, FA, SA, filename);
 
 	switch (FA) {
 		case KERN_DEVICE_SCREEN:
@@ -103,13 +104,23 @@ OPEN()
 			break;
 		case KERN_DEVICE_CASSETTE:
 		case KERN_DEVICE_RS232:
-			a = KERN_ERR_NONE;
+			a = KERN_ERR_DEVICE_NOT_PRESENT;
 			break;
 		case KERN_DEVICE_PRINTERU4:
+			printer_open(4);
+			a = KERN_ERR_NONE;
+			break;
 		case KERN_DEVICE_PRINTERU5:
+			printer_open(5);
+			a = KERN_ERR_NONE;
+			break;
 		case KERN_DEVICE_PRINTERU6:
+			printer_open(6);
+			a = KERN_ERR_NONE;
+			break;
 		case KERN_DEVICE_PRINTERU7:
-			a = KERN_ERR_DEVICE_NOT_PRESENT;
+			printer_open(7);
+			a = KERN_ERR_NONE;
 			break;
 		case KERN_DEVICE_DRIVEU8:
 		case KERN_DEVICE_DRIVEU9:
@@ -123,10 +134,10 @@ OPEN()
 			break;
 	}
 
-	if (!(a & 1)) {
+	if (a == KERN_ERR_NONE) {
 		file_to_device[LA] = FA;
 	}
-	//	printf("file_to_device[%d] = %d\n", LA, FA);
+//	printf("file_to_device[%d] = %d\n", LA, FA);
 	set_c(a != KERN_ERR_NONE);
 }
 
@@ -135,6 +146,7 @@ void
 CLOSE()
 {
 	uint8_t dev = file_to_device[a];
+//	printf("CLOSE %d,%d\n", a, dev);
 	if (dev == 0xFF) {
 		set_c(1);
 		a = KERN_ERR_FILE_NOT_OPEN;
@@ -146,12 +158,24 @@ CLOSE()
 		case KERN_DEVICE_CASSETTE:
 		case KERN_DEVICE_RS232:
 		case KERN_DEVICE_SCREEN:
-		case KERN_DEVICE_PRINTERU4:
-		case KERN_DEVICE_PRINTERU5:
-		case KERN_DEVICE_PRINTERU6:
-		case KERN_DEVICE_PRINTERU7:
 			set_c(0);
 			return;
+		case KERN_DEVICE_PRINTERU4:
+			printer_close(4);
+			a = KERN_ERR_NONE;
+			break;
+		case KERN_DEVICE_PRINTERU5:
+			printer_close(5);
+			a = KERN_ERR_NONE;
+			break;
+		case KERN_DEVICE_PRINTERU6:
+			printer_close(6);
+			a = KERN_ERR_NONE;
+			break;
+		case KERN_DEVICE_PRINTERU7:
+			printer_close(7);
+			a = KERN_ERR_NONE;
+			break;
 		case KERN_DEVICE_DRIVEU8:
 		case KERN_DEVICE_DRIVEU9:
 		case KERN_DEVICE_DRIVEU10:
@@ -173,7 +197,7 @@ void
 CHKIN()
 {
 	uint8_t dev = file_to_device[x];
-//		printf("CHKIN %d (dev %d)\n", x, dev);
+//	printf("CHKIN %d (dev %d)\n", x, dev);
 	if (dev == 0xFF) {
 		DFLTN = KERN_DEVICE_KEYBOARD;
 		set_c(1);
@@ -211,8 +235,8 @@ CHKIN()
 void
 CHKOUT()
 {
-	//	printf("CHKOUT %d\n", x);
 	uint8_t dev = file_to_device[x];
+//	printf("CHKOUT %d (dev %d)\n", x, dev);
 	if (dev == 0xFF) {
 		DFLTO = KERN_DEVICE_SCREEN;
 		set_c(1);
@@ -303,7 +327,7 @@ BSOUT()
 	int a4 = *(uint16_t *)(&RAM[0x0100+sp+7]) + 1;
 	printf("+BSOUT: '%c' -> %d @ %x,%x,%x,%x: ---", a, DFLTO, a1, a2, a3, a4);
 #endif
-	//	printf("%s:%d DFLTO: %d\n", __func__, __LINE__, DFLTO);
+//	printf("<%s:%d DFLTO: %d>", __func__, __LINE__, DFLTO);
 	switch (DFLTO) {
 		case KERN_DEVICE_KEYBOARD:
 			set_c(1);
@@ -319,10 +343,20 @@ BSOUT()
 			set_c(0);
 			break;
 		case KERN_DEVICE_PRINTERU4:
+			printer_bsout(4);
+			set_c(0);
+			return;
 		case KERN_DEVICE_PRINTERU5:
+			printer_bsout(5);
+			set_c(0);
+			return;
 		case KERN_DEVICE_PRINTERU6:
+			printer_bsout(6);
+			set_c(0);
+			return;
 		case KERN_DEVICE_PRINTERU7:
-			set_c(1);
+			printer_bsout(7);
+			set_c(0);
 			return;
 		case KERN_DEVICE_DRIVEU8:
 		case KERN_DEVICE_DRIVEU9:
@@ -337,6 +371,7 @@ BSOUT()
 			break;
 	}
 	//	printf("--- BSOUT: '%c' -> %d @ %x,%x,%x,%x\n", a, DFLTO, a1, a2, a3, a4);
+//	printf("</>");
 }
 
 // LOAD - Load RAM from a device
@@ -452,6 +487,7 @@ SAVE()
 void
 CLALL()
 {
+//	printf("CLALL\n");
 	for (a = 0; a < sizeof(file_to_device)/sizeof(file_to_device[0]); a++) {
 		uint8_t dev = file_to_device[a];
 		if (dev != 0xFF) {
