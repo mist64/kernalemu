@@ -1,21 +1,23 @@
 CFLAGS=-Wall -Werror -g
+SDIR=src
+ODIR=build
+EXECUTABLE=$(ODIR)/kernalemu
 
-all:
-	cc $(CFLAGS) -c console.c
-	cc $(CFLAGS) -c main.c
-	cc $(CFLAGS) -c dispatch.c
-	cc $(CFLAGS) -c cbmdos.c
-	cc $(CFLAGS) -c screen.c
-	cc $(CFLAGS) -c memory.c
-	cc $(CFLAGS) -c time.c
-	cc $(CFLAGS) -c ieee488.c
-	cc $(CFLAGS) -c channelio.c
-	cc $(CFLAGS) -c io.c
-	cc $(CFLAGS) -c keyboard.c
-	cc $(CFLAGS) -c vector.c
-	cc $(CFLAGS) -c c128.c
-	cc $(CFLAGS) -c fake6502.c
-	cc -o kernalemu console.o cbmdos.o screen.o memory.o time.o ieee488.o channelio.o io.o keyboard.o vector.o c128.o main.o dispatch.o fake6502.o
+_OBJS = console.o cbmdos.o screen.o memory.o time.o ieee488.o channelio.o io.o keyboard.o vector.o c128.o main.o dispatch.o fake6502.o
+
+_HEADERS = c128.h cbmdos.h channelio.h console.h dispatch.h error.h fake6502.h glue.h ieee488.h io.h keyboard.h memory.h readdir.h screen.h stat.h time.h vector.h
+
+OBJS = $(patsubst %,$(ODIR)/%,$(_OBJS))
+HEADERS = $(patsubst %,$(SDIR)/%,$(_HEADERS))
+
+all: $(EXECUTABLE)
+
+$(EXECUTABLE): $(OBJS) $(HEADERS)
+	$(CC) -o $(EXECUTABLE) $(OBJS) $(LDFLAGS)
+
+$(ODIR)/%.o: $(SDIR)/%.c
+	@mkdir -p $$(dirname $@)
+	$(CC) $(CFLAGS) -c $< -o $@
 
 clean:
-	rm *.o kernalemu
+	rm -rf $(ODIR)
