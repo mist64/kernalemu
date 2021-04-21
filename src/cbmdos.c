@@ -250,7 +250,7 @@ cbmdos_open(uint8_t lfn, uint8_t unit, uint8_t sec, const char *filename)
 			filename += 2;
 		}
 
-		char *mode = (sec == 1) ? "w" : "r";
+		char *mode = (sec == 1) ? "wb" : "rb";
 		char *comma = strchr(filename, ',');
 		if (comma) {
 			*comma = 0;
@@ -262,7 +262,7 @@ cbmdos_open(uint8_t lfn, uint8_t unit, uint8_t sec, const char *filename)
 				mode_c = comma2[1]; // 'R', 'W'
 			}
 			if (mode_c == 'W') {
-				mode = "w";
+				mode = "wb";
 			}
 			//				printf("(%c, %c, %s)\n", type, mode_c, mode);
 		}

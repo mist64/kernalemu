@@ -8,7 +8,7 @@ void
 printer_open(uint8_t dev) {
 	char filename[13];
 	sprintf(filename, "printer%d.txt", dev);
-	file[dev - 4] = fopen(filename, "w");
+	file[dev - 4] = fopen(filename, "wb");
 }
 
 void

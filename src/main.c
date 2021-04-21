@@ -103,12 +103,14 @@ main(int argc, char **argv)
 			}
 			i++;
 		} else {
-			FILE *binary = fopen(argv[i], "r");
+			FILE *binary = fopen(argv[i], "rb");
 			if (!binary) {
 				printf("Error opening: %s\n", argv[i]);
 				exit(1);
 			}
-			uint16_t load_address = fgetc(binary) | fgetc(binary) << 8;
+			uint8_t lo = fgetc(binary);
+			uint8_t hi = fgetc(binary);
+			uint16_t load_address = lo | hi << 8;
 			fread(&RAM[load_address], 65536 - load_address, 1, binary);
 			fclose(binary);
 			bool has_basic_start = false;
