@@ -18,6 +18,8 @@
 #include "dispatch.h"
 #include "screen.h"
 
+machine_t machine;
+
 static uint16_t
 parse_num(char *s)
 {
@@ -31,6 +33,7 @@ parse_num(char *s)
 	}
 	return strtoul(s, NULL, base);
 }
+
 int
 main(int argc, char **argv)
 {
@@ -44,7 +47,6 @@ main(int argc, char **argv)
 	bool has_start_address_indirect = false;
 	uint16_t start_address_indirect;
 	bool has_machine;
-	machine_t machine;
 	bool charset_text = false;
 	uint8_t columns = 0;
 

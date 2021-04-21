@@ -14,6 +14,8 @@ typedef enum {
 	MACHINE_C65,
 } machine_t;
 
+extern machine_t machine;
+
 __attribute__((unused)) static void
 set_c(char f)
 {
