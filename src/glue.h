@@ -1,3 +1,7 @@
+// KERNAL Emulator
+// Copyright (c) 2009-2021 Michael Steil
+// All rights reserved. License: 2-clause BSD
+
 #include <stdint.h>
 
 extern uint8_t a, x, y, sp, status;

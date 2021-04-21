@@ -1,4 +1,5 @@
-// Copyright (c) 2009 Michael Steil, James Abbatiello et al.
+// KERNAL Emulator
+// Copyright (c) 2009-2021 Michael Steil, James Abbatiello et al.
 // All rights reserved. License: 2-clause BSD
 
 #include <stdlib.h>

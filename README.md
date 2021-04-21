@@ -210,4 +210,8 @@ The assembler sends the LST output to the printer, which you can find in the fil
 
 ## Credits
 
-This repository is maintained by Michael Steil, <mist64@mac.com>, [www.pagetable.com](http://www.pagetable.com/)
+This repository is maintained by Michael Steil, <mist64@mac.com>, [www.pagetable.com](http://www.pagetable.com/).
+
+Some of the code is derived from [cbmbasic](https://github.com/mist64/cbmbasic), see there for additional authors.
+
+The license is 2-clause BSD.

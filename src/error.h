@@ -1,3 +1,7 @@
+// KERNAL Emulator
+// Copyright (c) 2009-2021 Michael Steil
+// All rights reserved. License: 2-clause BSD
+
 #define KERN_ERR_NONE                  0
 #define KERN_ERR_FILE_OPEN             2
 #define KERN_ERR_FILE_NOT_OPEN         3
