@@ -31,8 +31,32 @@ write6502(uint16_t address, uint8_t value)
 void
 RAMTAS()
 {
-	ram_bot = 0x0800;
-	ram_top = 0xA000;
+	switch (machine) {
+		case MACHINE_PET:
+		case MACHINE_PET4:
+			// impossible
+			break;
+		case MACHINE_VIC20:
+			ram_bot = 0x1200; // unexpanded: 0x1000
+			ram_top = 0x8000; // unexpanded: 0x1e00
+			break;
+		case MACHINE_C64:
+			ram_bot = 0x0800;
+			ram_top = c64_has_external_rom ? 0x8000 : 0xa000;
+			break;
+		case MACHINE_TED:
+			ram_bot = 0x1000;
+			ram_top = 0xfd00;
+			break;
+		case MACHINE_C128:
+			ram_bot = 0x1c00;
+			ram_top = 0xff00;
+			break;
+		case MACHINE_C65:
+			ram_bot = 0x2000;
+			ram_top = 0xff00;
+			break;
+	}
 
 	// clear zero page
 	memset(RAM, 0, 0x100);

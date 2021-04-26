@@ -20,6 +20,8 @@ typedef enum {
 
 extern machine_t machine;
 
+extern uint16_t c64_has_external_rom;
+
 __attribute__((unused)) static void
 set_c(char f)
 {

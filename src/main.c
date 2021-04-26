@@ -20,6 +20,7 @@
 #include "screen.h"
 
 machine_t machine;
+uint16_t c64_has_external_rom;
 
 static uint16_t
 parse_num(char *s)
@@ -50,6 +51,8 @@ main(int argc, char **argv)
 	bool has_machine;
 	bool charset_text = false;
 	uint8_t columns = 0;
+
+	c64_has_external_rom = false;
 
 	for (int i = 1; i < argc; i++) {
 		if (argv[i][0] == '-') {
@@ -114,6 +117,9 @@ main(int argc, char **argv)
 			uint16_t load_address = lo | hi << 8;
 			fread(&RAM[load_address], 65536 - load_address, 1, binary);
 			fclose(binary);
+			if (load_address == 0x8000) {
+				c64_has_external_rom = true;
+			}
 			bool has_basic_start = false;
 			switch (load_address) {
 				case 0x401:  // PET
