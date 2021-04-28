@@ -53,7 +53,7 @@ There are several applications in the `demo` subdirectory. Here is how to run th
 	$ kernalemu demo/vic20basic.prg -startind 0xc000 -machine vic20
 	
 	**** CBM BASIC V2 ****
-	38911 BYTES FREE
+	28159 BYTES FREE
 	
 	READY.
 
@@ -62,7 +62,7 @@ There are several applications in the `demo` subdirectory. Here is how to run th
 	$ kernalemu demo/vic20basic.prg demo/vic20basic4.prg -startind 0xa000 -machine vic20
 
 	**** CBM BASIC V2 ****
-	38911 BYTES FREE
+	28159 BYTES FREE
 	
 	READY.
 
@@ -83,7 +83,7 @@ There are several applications in the `demo` subdirectory. Here is how to run th
 
 	*** EXTENDED CBM V2 BASIC ***
 	
-	38911 BASIC BYTES FREE
+	30719 BASIC BYTES FREE
 	
 	READY.
 
