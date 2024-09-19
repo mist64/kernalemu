@@ -6,7 +6,7 @@ static FILE *file[4];
 
 void
 printer_open(uint8_t dev) {
-	char filename[13];
+	char filename[15];
 	sprintf(filename, "printer%d.txt", dev);
 	file[dev - 4] = fopen(filename, "wb");
 }
